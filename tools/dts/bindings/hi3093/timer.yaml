@@ -1,0 +1,23 @@
+description: Synopsys Designware TIMER node
+
+compatible : "hisilicon,hisi-timer"
+
+include: base.yaml
+
+bus: timer
+
+properties:
+  ids:
+    type: array
+    required: false
+  reg:
+    required: false
+  clock-sel:
+    type: array
+    required: false
+  interrupts:
+    required: false
+  domain:
+    type: array
+    required: true
+    description: Provided names of mailbox / IPM channel specifiers

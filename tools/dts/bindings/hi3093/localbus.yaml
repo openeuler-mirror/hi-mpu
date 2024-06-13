@@ -1,0 +1,17 @@
+description: Synopsys Designware LOCALBUS Controller node
+
+compatible: "hisilicon, hi1711-localbus"
+
+include: base.yaml
+
+bus: localbus
+
+properties:
+  interrupts:
+    required: false
+  reg:
+    required: false
+  domain:
+    type: array
+    required: true
+  

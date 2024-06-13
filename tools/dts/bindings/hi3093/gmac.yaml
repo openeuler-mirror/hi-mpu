@@ -1,0 +1,19 @@
+description: Synopsys Designware GMAC Controller node
+
+compatible: "hisilicon, hi1711_gmac_net"
+
+include: base.yaml
+
+bus: gmac
+
+properties:
+  interrupts:
+    required: false
+  reg:
+    required: false
+  phy_addr:
+    type: array
+    required: false
+  domain:
+    type: array
+    required: true

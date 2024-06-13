@@ -1,0 +1,19 @@
+description: Synopsys Designware UART Controller node
+
+compatible : "hisilicon,hisi-uart"
+
+include: base.yaml
+
+bus: uart
+
+properties:
+  interrupts:
+    required: false
+  reg:
+    required: false
+  port-no:
+    type: array
+    required: false
+  domain:
+    type: array
+    required: true

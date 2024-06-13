@@ -1,0 +1,23 @@
+description: Synopsys Designware SPI node
+
+compatible: "hisilicon,hisi-spi"
+
+include: base.yaml
+
+bus: spi
+
+properties:
+  reg:
+    required: false
+  ctlid:
+    type: array
+    required: false
+  clock-sel:
+    type: array
+    required: false
+  interrupts:
+    required: false
+  domain:
+    type: array
+    required: true
+  

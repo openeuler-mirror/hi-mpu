@@ -1,0 +1,16 @@
+#!/bin/sh
+
+#Link real device to /dev/nvm_active|gold|temp
+function link_emmc_part_devname()
+{
+	part_id=`cat /proc/device-tree/nvm_part/$1`
+	real_devname="/dev/mmcblk0gp$part_id"
+	echo $real_devname
+	#Remove old link
+	rm -f /dev/nvm_$1
+	ln -s $real_devname /dev/nvm_$1
+}
+
+link_emmc_part_devname active
+link_emmc_part_devname gold
+link_emmc_part_devname temp

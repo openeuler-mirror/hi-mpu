@@ -1,0 +1,107 @@
+if TARGET_HI309x
+
+config SYS_BOARD
+	default "hi309x"
+
+config SYS_VENDOR
+	default "hisilicon"
+
+config SYS_TEXT_BASE
+	default 0x87200000
+
+config SYS_SRAM_SIZE
+	hex
+	default 0x20000
+
+config SYS_SRAM_BASE
+	hex
+	default 0x08100000
+
+config SYS_LOAD_ADDR
+	hex "Address in memory to use by default"
+	default 0x8B200000
+	help
+	  Address in memory to use as the default safe load address.
+
+config SYS_SOC
+	default "hi309x"
+
+config SYS_CONFIG_NAME
+	default "hi309x"
+
+config HI309x_FPGA
+	bool "Support Hisilicon 309x fpga board"
+	help
+	  Hi309x FPGA board support(normally defined in configs/hi309x_defconfig)
+
+config HI309x_CA53
+	bool "Hi309x using Cortex-A53 core"
+	help
+		If Hi309x is implemented using Cortex-A53, please select this config
+		Generally defined in configs/hi309x_defconfig
+
+config COUNTER_FREQUENCY
+	int "Timer clock frequency"
+	default 25000000
+
+config ATF_FW_OFFSET
+	int "ATF OFFSET"
+	default 552960
+
+config CMD_NFS
+	bool "nfs"
+	default n
+	help
+	  Boot image via network using NFS protocol.
+
+config EFI_SETUP_EARLY
+	bool
+	default n
+
+config BSP_DISABLE_CONSOLE
+	bool "disable some debug info"
+	default y
+
+config IF_PRIVATE_DEVICE
+	bool "use private emmc device"
+	default y
+
+config ENV_IS_PRIVATE_DEVICE
+	bool "env use private emmc device"
+	default y
+
+config DRIVER_PRIVATE_MMC
+	bool "use private emmc driver"
+	default y
+
+config BOOT_FROM_ATF
+	bool
+	default y
+
+config SYS_DEPLOY_TYPE
+	hex "deploy Type"
+	default 0x1
+	help
+	  0x1 : Baremetal Only
+	  0x2 : Euler Only
+	  0x4 : Euler + Baremetal
+	  0x8 : Euler + Uniporton/Libck
+
+config BOOT_FROM_USER
+	  bool "boot from user part, offset see env(part2_user_offset)"
+	  default n
+
+config HI3093_SPI_BOOT
+	bool "enable 3093 boot from sfc"
+	default n
+	help
+	  enable 3093 boot from sfc
+
+config HI3093_MMC_BOOT
+	bool "enable 3093 boot from emmc"
+	default y if !HI3093_SPI_BOOT
+	default n
+	help
+	  enable 3093 boot from emmc
+
+endif

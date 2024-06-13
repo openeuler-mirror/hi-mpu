@@ -1,0 +1,13 @@
+include $(SDK_ROOT)/Makefile.cfg
+
+obj-m := ksecurec.o
+ksecurec-y := memcpy_s.o memmove_s.o memset_s.o  securecutil.o  strcat_s.o strcpy_s.o strncat_s.o strncpy_s.o sprintf_s.o vsprintf_s.o snprintf_s.o vsnprintf_s.o secureprintoutput_a.o sscanf_s.o vsscanf_s.o secureinput_a.o strtok_s.o
+
+MODULE_MAKE := ${PWD}
+
+all:
+	$(MAKE) -j${COMPILE_PROCESS_NUM} -C $(KERNEL_PATH) M=$(PWD) modules
+
+clean:
+	make -j${COMPILE_PROCESS_NUM} -C${KERNEL_PATH} M=${MODULE_MAKE} clean
+

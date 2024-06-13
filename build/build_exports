@@ -1,0 +1,23 @@
+PROJECT_BUILD_DIR=`pwd`
+
+export LINUX_PATH=linux${KERNEL_VERSION_MAIN}
+export SECUREC_PLATFORM=securec
+export KERNEL_PATH=${KERNEL_SRC_DIR}
+export ARCH=arm64
+export COMPILE_PROCESS_NUM=$(nproc)
+export SDK_ROOT=$PROJECT_BUILD_DIR/../../src/non_real_time/drivers
+export SECUREC_PATH=$PROJECT_BUILD_DIR/../../platform/${SECUREC_PLATFORM}
+export CROSS_COMPILE=aarch64-openeuler-linux-
+export CFLAGS=" -O2 -pipe -g -feliminate-unused-debug-types "
+export CXXFLAGS=" -O2 -pipe -g -feliminate-unused-debug-types "
+export LDFLAGS="-Wl,-O1 -Wl,--hash-style=gnu -Wl,--as-needed -Wl,--build-id=sha1 -Wl,-z,noexecstack -Wl,-z,relro,-z,now"
+export CPPFLAGS=""
+
+function exit_if_error()
+{
+	if [ $1 -ne 0 ]
+	then
+		echo "Build Error: "$2
+		exit $1
+	fi
+}

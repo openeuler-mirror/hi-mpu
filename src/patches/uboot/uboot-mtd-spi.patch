@@ -1,0 +1,572 @@
+diff --git a/drivers/mtd/spi/Makefile b/drivers/mtd/spi/Makefile
+index 6b0aed32b6..fad1f27c23 100755
+--- a/drivers/mtd/spi/Makefile
++++ b/drivers/mtd/spi/Makefile
+@@ -20,6 +20,7 @@ endif
+ obj-$(CONFIG_HI3093_SPI) += hi309x_spi.o
+ obj-$(CONFIG_SPI_FLASH) += spi-nor.o
+ obj-$(CONFIG_HI3093_SPI) += hi309x_spi_nor.o
++obj-$(CONFIG_HI3093_SPI) += spi_mem_priv.o
+ obj-$(CONFIG_SPI_FLASH_DATAFLASH) += sf_dataflash.o
+ obj-$(CONFIG_$(SPL_TPL_)SPI_FLASH_MTD) += sf_mtd.o
+ obj-$(CONFIG_SPI_FLASH_SANDBOX) += sandbox.o
+diff --git a/drivers/mtd/spi/hi309x_priv.h b/drivers/mtd/spi/hi309x_priv.h
+new file mode 100644
+index 0000000000..32087fbf9e
+--- /dev/null
++++ b/drivers/mtd/spi/hi309x_priv.h
+@@ -0,0 +1,30 @@
++#ifndef _HI309X_PRIV_H_
++#define _HI309X_PRIV_H_
++#include <spi.h>
++#include <spi-mem.h>
++#if CONFIG_IS_ENABLED(DM_SPI)
++#include <dm/device.h>
++#include <dm/ofnode.h>
++#endif
++
++int priv_spi_claim_bus(struct spi_slave *slave);
++void priv_spi_release_bus(struct spi_slave *slave);
++int priv_spi_xfer(struct spi_slave *slave, unsigned int bitlen, const void *dout, void *din, unsigned long flags);
++int priv_spi_cs_is_valid(unsigned int bus, unsigned int cs);
++struct spi_slave* priv_spi_setup_slave(unsigned int bus, unsigned int cs, unsigned int max_hz, unsigned int mode);
++void priv_spi_free_slave(struct spi_slave *slave);
++int priv_spi_mem_exec_op(struct spi_slave *slave, const struct spi_mem_op *op);
++int priv_spi_mem_adjust_op_size(struct spi_slave *slave, struct spi_mem_op *op);
++bool priv_spi_mem_supports_op(struct spi_slave *slave, const struct spi_mem_op *op);
++
++#define spi_claim_bus priv_spi_claim_bus
++#define spi_release_bus priv_spi_release_bus
++#define spi_xfer priv_spi_xfer
++#define spi_cs_is_valid priv_spi_cs_is_valid
++#define spi_setup_slave priv_spi_setup_slave
++#define spi_free_slave priv_spi_free_slave
++#define spi_mem_exec_op priv_spi_mem_exec_op
++#define spi_mem_adjust_op_size priv_spi_mem_adjust_op_size
++#define spi_mem_supports_op priv_spi_mem_supports_op
++
++#endif
+\ No newline at end of file
+diff --git a/drivers/mtd/spi/hi309x_spi.c b/drivers/mtd/spi/hi309x_spi.c
+index 2b5e67bd53..127801c13f 100644
+--- a/drivers/mtd/spi/hi309x_spi.c
++++ b/drivers/mtd/spi/hi309x_spi.c
+@@ -5,7 +5,11 @@
+ #include <errno.h>
+ #include <malloc.h>
+ #include <fdtdec.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <asm/io.h>
+ #include <hi309x_common.h>
+ 
+@@ -67,6 +71,11 @@ static void sfc_iocfg(unsigned int bus)
+ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs, unsigned int max_hz, unsigned int mode)
+ {
+     struct hi309x_spi_slave *hi309x_slave = NULL;
++#if CONFIG_IS_ENABLED(DM_SPI)
++    struct udevice *dev;
++    struct dm_spi_slave_plat *plat;
++    void *ptr;
++#endif
+ 
+     if (!spi_cs_is_valid(bus, cs)) {
+         printf("Hi309x SPI: bus %d / cs %d invalid\n", bus, cs);
+@@ -75,7 +84,11 @@ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs, unsigned in
+ 
+     sfc_iocfg(bus);
+ 
++#if CONFIG_IS_ENABLED(DM_SPI)
++    hi309x_slave = (struct hi309x_spi_slave *)calloc(1, sizeof(struct hi309x_spi_slave));
++#else
+     hi309x_slave = spi_alloc_slave(struct hi309x_spi_slave, bus, cs);
++#endif
+     if (!hi309x_slave) {
+         printf("Hi309x SPI: cannot alloc hi309x_spi_slave\n");
+         return NULL;
+@@ -83,9 +96,32 @@ struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs, unsigned in
+ 
+     hi309x_slave->max_hz = max_hz;
+     hi309x_slave->mode = mode;
++    /* add 2024.03.05 */
++#if CONFIG_IS_ENABLED(DM_SPI)
++    ptr = calloc(1, sizeof(struct udevice));
++    if (!ptr) {
++        return NULL;
++    }
++    dev = (struct udevice *)ptr;
++
++    ptr = calloc(1, sizeof(struct dm_spi_slave_plat));
++    if (!ptr) {
++		return NULL;
++	}
++	dev->parent_plat_ = ptr;
++
++    plat = dev->parent_plat_;
++    plat->cs = cs;
++    dev->seq_ = bus;
++
++    hi309x_slave->slave.dev = dev;
++    hi309x_slave->slave.wordlen = SPI_DEFAULT_WORDLEN;
++#else
+     /* add 2018.06.14 */
+     hi309x_slave->slave.bus = bus;
+     hi309x_slave->slave.cs = cs;
++#endif
++
+     hi309x_slave->slave.max_write_size = 64; /* 控制器单次的最大大小 */
+ 
+     /* Add other code */
+@@ -736,8 +772,15 @@ int spi_xfer(struct spi_slave *slave, unsigned int bitlen, const void *dout, voi
+     unsigned int len;
+     int ret = 0;
+     u32 rw = 0;
++#if CONFIG_IS_ENABLED(DM_SPI)
++    struct dm_spi_slave_plat *plat;
++    u32 bus = slave->dev->seq_;
++    plat = slave->dev->parent_plat_;
++    u32 cs_val = plat->cs;
++#else
+     u32 bus = slave->bus;
+     u32 cs_val = slave->cs;
++#endif
+     u32 if_type = 0; /* 动态配置 */
+     u32 dummy_byte = 0;
+     u32 addr_en = 0;
+@@ -746,7 +789,6 @@ int spi_xfer(struct spi_slave *slave, unsigned int bitlen, const void *dout, voi
+     u8 cmdsz = SPI_FLASH_CMD_LEN;
+ 
+     txp = dout;
+-
+     if (bitlen == 0) { /* Finish any previously submitted transfers */
+         printf("bitlen is 0\n");
+         ret = -EINVAL;
+diff --git a/drivers/mtd/spi/hi309x_spi.h b/drivers/mtd/spi/hi309x_spi.h
+index 6d11843e9c..8c4d737e3d 100644
+--- a/drivers/mtd/spi/hi309x_spi.h
++++ b/drivers/mtd/spi/hi309x_spi.h
+@@ -88,7 +88,12 @@
+ #define CMD_EXTNADDR_RDEAR 0xC8
+ #endif
+ 
++int spi_flash_cmd_read(struct spi_slave *spi, const u8 *cmd, size_t cmd_len, void *data, size_t data_len);
++int spi_flash_cmd_write(struct spi_slave *spi, const u8 *cmd, size_t cmd_len, const void *data, size_t data_len);
+ int spi_flash_cmd(struct spi_slave *spi, u8 cmd, void *response, size_t len);
++int write_bar(struct spi_nor *nor, u32 offset);
++int read_sr(struct spi_nor *nor);
++int read_fsr(struct spi_nor *nor);
+ 
+ /* Enable writing on the SPI flash */
+ static inline int spi_flash_cmd_write_enable(struct spi_flash *flash)
+diff --git a/drivers/mtd/spi/hi309x_spi_nor.c b/drivers/mtd/spi/hi309x_spi_nor.c
+index d50a4d46a4..0ed15997c1 100644
+--- a/drivers/mtd/spi/hi309x_spi_nor.c
++++ b/drivers/mtd/spi/hi309x_spi_nor.c
+@@ -19,8 +19,12 @@
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/spi-nor.h>
+ #include <mtd/cfi_flash.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi-mem.h>
+ #include <spi.h>
++#endif
+ #include <asm/io.h>
+ #include <hi309x_common.h>
+ #include "sf_internal.h"
+@@ -65,6 +69,30 @@ static int spi_flash_read_any_reg(struct spi_flash *flash, unsigned int reg_addr
+     return 0;
+ }
+ 
++/*
++// 主要用于s70fs01gs的waitready  所以将2个wip的状态合并
++static int spansion_fs01gs_read_sr(struct spi_flash *flash, u8 *rs)
++{
++    int ret = 0;
++    u8 sr1v_temp[2] = {0};
++    unsigned int reg_addr_list[2] = {SPANSION_SR1V_REG_ADDR(SPANSION_S70FS01GS_FIRST_HALF_ADDR),
++        SPANSION_SR1V_REG_ADDR(SPANSION_S70FS01GS_SECOND_HALF_ADDR)};
++    u8 i = 0;
++
++    for (i = 0; i < 2; i++) {
++        ret = spi_flash_read_any_reg(flash, reg_addr_list[i], &sr1v_temp[i]);
++        if (ret) {
++            printf("sf spi_flash_read_any_reg 0x%x failed\n", reg_addr_list[i]);
++            return ret;
++        }
++    }
++    // wip 为1表示busy
++    *rs = (sr1v_temp[0] | sr1v_temp[1]);
++
++    return 0;
++}
++*/
++
+ int spi_flash_write_any_reg(struct spi_flash *flash, u32 reg_addr, u32 len, u32 value)
+ {
+     int ret = 0;
+@@ -245,9 +273,6 @@ int spi_flash_fs01gs_init_flash_mem(struct spi_flash *flash)
+     修改内容   : 新生成函数
+ 
+ *****************************************************************************/
+-int write_bar(struct spi_nor *nor, u32 offset);
+-int read_fsr(struct spi_nor *nor);
+-int read_sr(struct spi_nor *nor);
+ void exec_cmd_resume_bank0(struct spi_flash *flash)
+ {
+     int ret = 0;
+@@ -330,8 +355,6 @@ static int spi_flash_wait_till_ready(struct spi_flash *flash, unsigned long time
+ 
+     return -ETIMEDOUT;
+ }
+-
+-int spi_flash_cmd_write(struct spi_slave *spi, const u8 *cmd, size_t cmd_len, const void *data, size_t data_len);
+ int spi_flash_write_common(struct spi_flash *flash, const u8 *cmd, size_t cmd_len, const void *buf, size_t buf_len)
+ {
+     struct spi_slave *spi = flash->spi;
+@@ -370,8 +393,6 @@ int spi_flash_write_common(struct spi_flash *flash, const u8 *cmd, size_t cmd_le
+ 
+     return ret;
+ }
+-
+-int spi_flash_cmd_read(struct spi_slave *spi, const u8 *cmd, size_t cmd_len, void *data, size_t data_len);
+ int spi_flash_read_common(struct spi_flash *flash, const u8 *cmd, size_t cmd_len, void *data, size_t data_len)
+ {
+     struct spi_slave *spi = flash->spi;
+@@ -400,8 +421,11 @@ static void hisfc_set_host_addr_mode(struct spi_flash *flash, u8 enable_4b)
+ {
+     unsigned int regval;
+     unsigned int bus = 0;
+-
++#if CONFIG_IS_ENABLED(DM_SPI)
++    bus = flash->spi->dev->seq_;
++#else
+     bus = flash->spi->bus;
++#endif
+ 
+     regval = hisfc0_read(bus, HISFC350_GLOBAL_CONFIG);
+     if (enable_4b) {
+diff --git a/drivers/mtd/spi/sandbox.c b/drivers/mtd/spi/sandbox.c
+index 3c01e3b41c..1ab3358483 100644
+--- a/drivers/mtd/spi/sandbox.c
++++ b/drivers/mtd/spi/sandbox.c
+@@ -14,7 +14,11 @@
+ #include <dm.h>
+ #include <log.h>
+ #include <malloc.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <os.h>
+ 
+ #include <spi_flash.h>
+diff --git a/drivers/mtd/spi/sf-uclass.c b/drivers/mtd/spi/sf-uclass.c
+index e6e650ef8c..eef8226bbc 100644
+--- a/drivers/mtd/spi/sf-uclass.c
++++ b/drivers/mtd/spi/sf-uclass.c
+@@ -9,7 +9,11 @@
+ #include <dm.h>
+ #include <log.h>
+ #include <malloc.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <spi_flash.h>
+ #include <asm/global_data.h>
+ #include <dm/device-internal.h>
+diff --git a/drivers/mtd/spi/sf_dataflash.c b/drivers/mtd/spi/sf_dataflash.c
+index 85867817c7..681f54333e 100644
+--- a/drivers/mtd/spi/sf_dataflash.c
++++ b/drivers/mtd/spi/sf_dataflash.c
+@@ -12,7 +12,11 @@
+ #include <fdtdec.h>
+ #include <flash.h>
+ #include <log.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <spi_flash.h>
+ #include <div64.h>
+ #include <linux/delay.h>
+diff --git a/drivers/mtd/spi/sf_internal.h b/drivers/mtd/spi/sf_internal.h
+index 034bee6a96..5245ea5f50 100644
+--- a/drivers/mtd/spi/sf_internal.h
++++ b/drivers/mtd/spi/sf_internal.h
+@@ -14,6 +14,7 @@
+ #include <linux/compiler.h>
+ 
+ #ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
+ #include "hi309x_spi.h"
+ #endif
+ 
+diff --git a/drivers/mtd/spi/sf_probe.c b/drivers/mtd/spi/sf_probe.c
+index f461082e03..cb02ef3262 100644
+--- a/drivers/mtd/spi/sf_probe.c
++++ b/drivers/mtd/spi/sf_probe.c
+@@ -12,7 +12,11 @@
+ #include <errno.h>
+ #include <log.h>
+ #include <malloc.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <spi_flash.h>
+ 
+ #include "sf_internal.h"
+diff --git a/drivers/mtd/spi/spi-nor-core.c b/drivers/mtd/spi/spi-nor-core.c
+index 0cf30ce917..250fdd6314 100644
+--- a/drivers/mtd/spi/spi-nor-core.c
++++ b/drivers/mtd/spi/spi-nor-core.c
+@@ -28,8 +28,12 @@
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/spi-nor.h>
+ #include <mtd/cfi_flash.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi-mem.h>
+ #include <spi.h>
++#endif
+ 
+ #include "sf_internal.h"
+ 
+@@ -2635,9 +2639,13 @@ static int spi_nor_init_params(struct spi_nor *nor,
+ 
+ 		/* Mask out Fast Read if not requested at DT instantiation. */
+ #if CONFIG_IS_ENABLED(DM_SPI)
++#ifdef CONFIG_HI3093_SPI
++		params->hwcaps.mask &= ~SNOR_HWCAPS_READ_FAST;
++#else
+ 		if (!ofnode_read_bool(dev_ofnode(nor->spi->dev),
+ 				      "m25p,fast-read"))
+ 			params->hwcaps.mask &= ~SNOR_HWCAPS_READ_FAST;
++#endif
+ #endif
+ 	}
+ 
+@@ -2818,7 +2826,6 @@ static int spi_nor_check_op(struct spi_nor *nor,
+ 	if (!spi_mem_supports_op(nor->spi, op)) {
+ 		if (nor->mtd.size > SZ_16M)
+ 			return -ENOTSUPP;
+-
+ 		/* If flash size <= 16MB, 3 address bytes are sufficient */
+ 		op->addr.nbytes = 3;
+ 		if (!spi_mem_supports_op(nor->spi, op))
+diff --git a/drivers/mtd/spi/spi-nor-ids.c b/drivers/mtd/spi/spi-nor-ids.c
+index 7050ddc397..4f8398090a 100644
+--- a/drivers/mtd/spi/spi-nor-ids.c
++++ b/drivers/mtd/spi/spi-nor-ids.c
+@@ -7,7 +7,11 @@
+  */
+ 
+ #include <common.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi.h>
++#endif
+ #include <spi_flash.h>
+ 
+ #include "sf_internal.h"
+diff --git a/drivers/mtd/spi/spi-nor-tiny.c b/drivers/mtd/spi/spi-nor-tiny.c
+index 68152ce3b4..7e4f926f22 100644
+--- a/drivers/mtd/spi/spi-nor-tiny.c
++++ b/drivers/mtd/spi/spi-nor-tiny.c
+@@ -20,8 +20,12 @@
+ 
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/spi-nor.h>
++#ifdef CONFIG_HI3093_SPI
++#include "hi309x_priv.h"
++#else
+ #include <spi-mem.h>
+ #include <spi.h>
++#endif
+ 
+ #include "sf_internal.h"
+ 
+diff --git a/drivers/mtd/spi/spi_mem_priv.c b/drivers/mtd/spi/spi_mem_priv.c
+new file mode 100644
+index 0000000000..01122ee574
+--- /dev/null
++++ b/drivers/mtd/spi/spi_mem_priv.c
+@@ -0,0 +1,165 @@
++#include <log.h>
++#include <malloc.h>
++#include "hi309x_priv.h"
++
++int spi_mem_exec_op(struct spi_slave *slave,
++		    const struct spi_mem_op *op)
++{
++	unsigned int pos = 0;
++	const u8 *tx_buf = NULL;
++	u8 *rx_buf = NULL;
++	u8 *op_buf;
++	int op_len;
++	u32 flag;
++	int ret;
++	int i;
++
++	if (op->data.nbytes) {
++		if (op->data.dir == SPI_MEM_DATA_IN)
++			rx_buf = op->data.buf.in;
++		else
++			tx_buf = op->data.buf.out;
++	}
++
++	op_len = op->cmd.nbytes + op->addr.nbytes + op->dummy.nbytes;
++	op_buf = calloc(1, op_len);
++
++	ret = spi_claim_bus(slave);
++	if (ret < 0)
++		return ret;
++
++	op_buf[pos++] = op->cmd.opcode;
++
++	if (op->addr.nbytes) {
++		for (i = 0; i < op->addr.nbytes; i++)
++			op_buf[pos + i] = op->addr.val >>
++				(8 * (op->addr.nbytes - i - 1));
++
++		pos += op->addr.nbytes;
++	}
++
++	if (op->dummy.nbytes)
++		memset(op_buf + pos, 0xff, op->dummy.nbytes);
++
++	/* 1st transfer: opcode + address + dummy cycles */
++	flag = SPI_XFER_BEGIN;
++	/* Make sure to set END bit if no tx or rx data messages follow */
++	if (!tx_buf && !rx_buf)
++		flag |= SPI_XFER_END;
++
++	ret = spi_xfer(slave, op_len * 8, op_buf, NULL, flag);
++	if (ret)
++		return ret;
++
++	/* 2nd transfer: rx or tx data path */
++	if (tx_buf || rx_buf) {
++		ret = spi_xfer(slave, op->data.nbytes * 8, tx_buf,
++			       rx_buf, SPI_XFER_END);
++		if (ret)
++			return ret;
++	}
++
++	spi_release_bus(slave);
++
++	for (i = 0; i < pos; i++)
++		debug("%02x ", op_buf[i]);
++	debug("| [%dB %s] ",
++	      tx_buf || rx_buf ? op->data.nbytes : 0,
++	      tx_buf || rx_buf ? (tx_buf ? "out" : "in") : "-");
++	for (i = 0; i < op->data.nbytes; i++)
++		debug("%02x ", tx_buf ? tx_buf[i] : rx_buf[i]);
++	debug("[ret %d]\n", ret);
++
++	free(op_buf);
++
++	if (ret < 0)
++		return ret;
++
++	return 0;
++}
++
++int spi_mem_adjust_op_size(struct spi_slave *slave,
++			   struct spi_mem_op *op)
++{
++	unsigned int len;
++
++	len = op->cmd.nbytes + op->addr.nbytes + op->dummy.nbytes;
++	if (slave->max_write_size && len > slave->max_write_size)
++		return -EINVAL;
++
++	if (op->data.dir == SPI_MEM_DATA_IN) {
++		if (slave->max_read_size)
++			op->data.nbytes = min(op->data.nbytes,
++					      slave->max_read_size);
++	} else if (slave->max_write_size) {
++		op->data.nbytes = min(op->data.nbytes,
++				      slave->max_write_size - len);
++	}
++
++	if (!op->data.nbytes)
++		return -EINVAL;
++
++	return 0;
++}
++
++static int spi_check_buswidth_req(struct spi_slave *slave, u8 buswidth, bool tx)
++{
++	u32 mode = slave->mode;
++
++	switch (buswidth) {
++	case 1:
++		return 0;
++
++	case 2:
++		if ((tx && (mode & (SPI_TX_DUAL | SPI_TX_QUAD))) ||
++		    (!tx && (mode & (SPI_RX_DUAL | SPI_RX_QUAD))))
++			return 0;
++
++		break;
++
++	case 4:
++		if ((tx && (mode & SPI_TX_QUAD)) ||
++		    (!tx && (mode & SPI_RX_QUAD)))
++			return 0;
++
++		break;
++	case 8:
++		if ((tx && (mode & SPI_TX_OCTAL)) ||
++		    (!tx && (mode & SPI_RX_OCTAL)))
++			return 0;
++
++		break;
++
++	default:
++		break;
++	}
++
++	return -ENOTSUPP;
++}
++
++bool spi_mem_supports_op(struct spi_slave *slave, const struct spi_mem_op *op)
++{
++	if (spi_check_buswidth_req(slave, op->cmd.buswidth, true))
++		return false;
++
++	if (op->addr.nbytes &&
++	    spi_check_buswidth_req(slave, op->addr.buswidth, true))
++		return false;
++
++	if (op->dummy.nbytes &&
++	    spi_check_buswidth_req(slave, op->dummy.buswidth, true))
++		return false;
++
++	if (op->data.nbytes &&
++	    spi_check_buswidth_req(slave, op->data.buswidth,
++				   op->data.dir == SPI_MEM_DATA_OUT))
++		return false;
++
++	if (op->cmd.dtr || op->addr.dtr || op->dummy.dtr || op->data.dtr)
++		return false;
++
++	if (op->cmd.nbytes != 1)
++		return false;
++
++	return true;
++}
+\ No newline at end of file

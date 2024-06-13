@@ -1,0 +1,12 @@
+description: Synopsys Designware WATCHDOG Controller node
+
+compatible : "hisilicon, hi1711-watchdog"
+
+include: base.yaml
+
+bus: watchdog
+
+properties:
+  domain:
+    type: array
+    required: true

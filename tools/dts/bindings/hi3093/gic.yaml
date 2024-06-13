@@ -1,0 +1,17 @@
+description: ARM Generic Interrupt Controller
+
+compatible: "arm,gic"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+  redistributor-stride:
+    type: compound
+    required: false
+
+interrupt-cells:
+  - type
+  - irq
+  - flags

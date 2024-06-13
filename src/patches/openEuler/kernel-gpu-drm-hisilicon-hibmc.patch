@@ -1,0 +1,395 @@
+diff -uparN kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_drv.c hibmc/hibmc_drm_drv.c
+--- kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_drv.c	2023-12-12 19:59:37.000000000 +0800
++++ hibmc/hibmc_drm_drv.c	2024-04-25 14:51:56.849749740 +0800
+@@ -13,6 +13,10 @@
+ 
+ #include <linux/module.h>
+ #include <linux/pci.h>
++#include <linux/jiffies.h>
++#include <linux/platform_device.h>
++#include <linux/kthread.h>
++#include <linux/delay.h>
+ 
+ #include <drm/drm_atomic_helper.h>
+ #include <drm/drm_drv.h>
+@@ -205,52 +209,44 @@ static void hibmc_hw_config(struct hibmc
+ static int hibmc_hw_map(struct hibmc_drm_private *priv)
+ {
+ 	struct drm_device *dev = priv->dev;
+-	struct pci_dev *pdev = dev->pdev;
+-	resource_size_t addr, size, ioaddr, iosize;
++	struct platform_device *pdev = to_platform_device(dev->dev);
++	struct resource *res;	
+ 
+-	ioaddr = pci_resource_start(pdev, 1);
+-	iosize = pci_resource_len(pdev, 1);
+-	priv->mmio = devm_ioremap(dev->dev, ioaddr, iosize);
++	res = platform_get_resource(pdev,IORESOURCE_MEM,0);
++	if(!res){
++		drm_err(dev, "failed to get memory resource\n");
++		return -ENOMEM;
++	}
++	priv->mmio = devm_ioremap(dev->dev, res->start, resource_size(res));
+ 	if (!priv->mmio) {
+ 		drm_err(dev, "Cannot map mmio region\n");
+ 		return -ENOMEM;
+ 	}
+ 
+-	addr = pci_resource_start(pdev, 0);
+-	size = pci_resource_len(pdev, 0);
+-	priv->fb_map = devm_ioremap(dev->dev, addr, size);
++	res = platform_get_resource(pdev,IORESOURCE_MEM,1);
++	printk("res->start1 = %llx\nresource_size1 = %llx\n",res->start, resource_size(res));
++
++	priv->fb_map = devm_ioremap(dev->dev, res->start, resource_size(res));
+ 	if (!priv->fb_map) {
+ 		drm_err(dev, "Cannot map framebuffer\n");
+ 		return -ENOMEM;
+ 	}
+-	priv->fb_base = addr;
+-	priv->fb_size = size;
++
++	priv->fb_base = res->start;
++	priv->fb_size = resource_size(res);
+ 
+ 	return 0;
+ }
+ 
+-static void hibmc_hw_unmap(struct hibmc_drm_private *priv)
+-{
+-	struct drm_device *dev = priv->dev;
+-
+-	if (priv->fb_map) {
+-		devm_iounmap(dev->dev, priv->fb_map);
+-		priv->fb_map = NULL;
+-	}
+-
+-	if (priv->mmio) {
+-		devm_iounmap(dev->dev, priv->mmio);
+-		priv->mmio = NULL;
+-	}
+-}
+ 
+ static int hibmc_hw_init(struct hibmc_drm_private *priv)
+ {
+ 	int ret;
+ 
+ 	ret = hibmc_hw_map(priv);
+-	if (ret)
++	if (ret) {
+ 		return ret;
++	}
+ 
+ 	hibmc_hw_config(priv);
+ 
+@@ -266,10 +262,9 @@ static int hibmc_unload(struct drm_devic
+ 	if (dev->irq_enabled)
+ 		drm_irq_uninstall(dev);
+ 
+-	pci_disable_msi(dev->pdev);
+ 	hibmc_kms_fini(priv);
+ 	hibmc_mm_fini(priv);
+-	hibmc_hw_unmap(priv);
++
+ 	dev->dev_private = NULL;
+ 	return 0;
+ }
+@@ -277,6 +272,7 @@ static int hibmc_unload(struct drm_devic
+ static int hibmc_load(struct drm_device *dev)
+ {
+ 	struct hibmc_drm_private *priv;
++	struct platform_device *pdev;
+ 	int ret;
+ 
+ 	priv = drmm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+@@ -288,36 +284,31 @@ static int hibmc_load(struct drm_device
+ 	priv->dev = dev;
+ 
+ 	ret = hibmc_hw_init(priv);
+-	if (ret) {
+-		drm_err(dev, "failed to initialize hardware: %d\n", ret);
+-		goto err_alloc;
+-	}
++	if (ret)
++		goto err;
+ 
+ 	ret = hibmc_mm_init(priv);
+-	if (ret) {
+-		drm_err(dev, "failed to initialize mm: %d\n", ret);
+-		goto err_hw;
+-	}
++	if (ret)
++		goto err;
+ 
+ 	ret = hibmc_kms_init(priv);
+-	if (ret) {
+-		drm_err(dev, "failed to initialize kms: %d\n", ret);
+-		goto err_mm;
+-	}
++	if (ret)
++		goto err;
+ 
+ 	ret = drm_vblank_init(dev, dev->mode_config.num_crtc);
+ 	if (ret) {
+ 		drm_err(dev, "failed to initialize vblank: %d\n", ret);
+-		goto err_kms;
++		goto err;
+ 	}
+ 
+-	ret = pci_enable_msi(dev->pdev);
++	pdev = to_platform_device(priv->dev->dev);
++	dev->irq = platform_get_irq(pdev, 0);
++
++	printk("irq_enabled == %d\n", dev->irq_enabled);
++
++	ret = drm_irq_install(dev, dev->irq);
+ 	if (ret) {
+-		drm_warn(dev, "enabling MSI failed: %d\n", ret);
+-	} else {
+-		ret = drm_irq_install(dev, dev->pdev->irq);
+-		if (ret)
+-			drm_warn(dev, "install irq failed: %d\n", ret);
++		drm_warn(dev, "install irq failed: %d\n", ret);
+ 	}
+ 
+ 	/* reset all the states of crtc/plane/encoder/connector */
+@@ -325,28 +316,33 @@ static int hibmc_load(struct drm_device
+ 
+ 	return 0;
+ 
+-err_kms:
+-	hibmc_kms_fini(priv);
+-err_mm:
+-	hibmc_mm_fini(priv);
+-err_hw:
+-	hibmc_hw_unmap(priv);
+-err_alloc:
+-	dev->dev_private = NULL;
+-
++err:
++	hibmc_unload(dev);
++	drm_err(dev, "failed to initialize drm driver: %d\n", ret);
+ 	return ret;
+ }
+ 
+-static int hibmc_pci_probe(struct pci_dev *pdev,
+-			   const struct pci_device_id *ent)
++static int hibmc_probe(struct platform_device *pdev)
+ {
+ 	struct drm_device *dev;
+-	int ret;
++	struct apertures_struct *ap;
++	int ret,idx;
++	
++	ap = alloc_apertures(1);
++	if(!ap) {
++		return -1;
++	}
+ 
+-	ret = drm_fb_helper_remove_conflicting_pci_framebuffers(pdev,
+-								"hibmcdrmfb");
+-	if (ret)
++	for(idx = 0; idx < 2; idx++){
++		ap->ranges[idx].base = pdev->resource[idx].start;
++		ap->ranges[idx].size = resource_size(&pdev->resource[idx]);
++	}
++
++	ret = drm_fb_helper_remove_conflicting_framebuffers(ap, "hibmcdrmfb",false);
++	kfree(ap);
++	if (ret) {
+ 		return ret;
++	}
+ 
+ 	dev = drm_dev_alloc(&hibmc_driver, &pdev->dev);
+ 	if (IS_ERR(dev)) {
+@@ -354,25 +350,18 @@ static int hibmc_pci_probe(struct pci_de
+ 		return PTR_ERR(dev);
+ 	}
+ 
+-	dev->pdev = pdev;
+-	pci_set_drvdata(pdev, dev);
+-
+-	ret = pci_enable_device(pdev);
+-	if (ret) {
+-		drm_err(dev, "failed to enable pci device: %d\n", ret);
+-		goto err_free;
+-	}
++	dev->dev = &pdev->dev;
++	platform_set_drvdata(pdev, dev);
+ 
+ 	ret = hibmc_load(dev);
+ 	if (ret) {
+ 		drm_err(dev, "failed to load hibmc: %d\n", ret);
+-		goto err_disable;
++		goto err_unload;
+ 	}
+ 
+ 	ret = drm_dev_register(dev, 0);
+ 	if (ret) {
+-		drm_err(dev, "failed to register drv for userspace access: %d\n",
+-			  ret);
++		drm_err(dev, "failed to register drv for userspace access: %d\n", ret);
+ 		goto err_unload;
+ 	}
+ 
+@@ -382,46 +371,34 @@ static int hibmc_pci_probe(struct pci_de
+ 
+ err_unload:
+ 	hibmc_unload(dev);
+-err_disable:
+-	pci_disable_device(pdev);
+-err_free:
+-	drm_dev_put(dev);
+ 
+ 	return ret;
+ }
+ 
+-static void hibmc_pci_remove(struct pci_dev *pdev)
++static int hibmc_remove(struct platform_device *pdev)
+ {
+-	struct drm_device *dev = pci_get_drvdata(pdev);
+-
++	struct drm_device *dev = platform_get_drvdata(pdev);
+ 	drm_dev_unregister(dev);
+ 	hibmc_unload(dev);
+-	pci_disable_device(pdev);
+-	drm_dev_put(dev);
+-}
+-
+-static void hibmc_pci_shutdown(struct pci_dev *pdev)
+-{
+-	hibmc_pci_remove(pdev);
++	return 0;
+ }
+ 
+-static struct pci_device_id hibmc_pci_table[] = {
+-	{ PCI_VDEVICE(HUAWEI, 0x1711) },
+-	{0,}
++static const struct of_device_id hibmc_gpu_match[] = {
++	{.compatible = "hisilicon, hi1711-gpu"},{}
+ };
+ 
+-static struct pci_driver hibmc_pci_driver = {
+-	.name =		"hibmc-drm",
+-	.id_table =	hibmc_pci_table,
+-	.probe =	hibmc_pci_probe,
+-	.remove =	hibmc_pci_remove,
+-	.shutdown = hibmc_pci_shutdown,
+-	.driver.pm = &hibmc_pm_ops,
++static struct platform_driver hibmc_gpu_driver = {
++	.driver = {
++		.name = "gpu",
++		.of_match_table = hibmc_gpu_match,
++		.pm = &hibmc_pm_ops,
++	},
++	.probe =     hibmc_probe,
++	.remove =    hibmc_remove,
+ };
+ 
+-module_pci_driver(hibmc_pci_driver);
++module_platform_driver(hibmc_gpu_driver);
+ 
+-MODULE_DEVICE_TABLE(pci, hibmc_pci_table);
+ MODULE_AUTHOR("RongrongZou <zourongrong@huawei.com>");
+ MODULE_DESCRIPTION("DRM Driver for Hisilicon Hibmc");
+ MODULE_LICENSE("GPL v2");
+diff -uparN kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_i2c.c hibmc/hibmc_drm_i2c.c
+--- kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_i2c.c	2023-12-12 19:59:37.000000000 +0800
++++ hibmc/hibmc_drm_i2c.c	2024-04-25 14:51:56.849749740 +0800
+@@ -11,6 +11,7 @@
+ 
+ #include <linux/delay.h>
+ #include <linux/pci.h>
++#include <linux/platform_device.h>
+ 
+ #include <drm/drm_atomic_helper.h>
+ #include <drm/drm_probe_helper.h>
+@@ -80,10 +81,11 @@ static int hibmc_ddc_getscl(void *data)
+ int hibmc_ddc_create(struct drm_device *drm_dev,
+ 		     struct hibmc_connector *connector)
+ {
++	struct platform_device *pdev = to_platform_device(drm_dev->dev);
+ 	connector->adapter.owner = THIS_MODULE;
+ 	connector->adapter.class = I2C_CLASS_DDC;
+ 	snprintf(connector->adapter.name, I2C_NAME_SIZE, "HIS i2c bit bus");
+-	connector->adapter.dev.parent = &drm_dev->pdev->dev;
++	connector->adapter.dev.parent = &pdev->dev;
+ 	i2c_set_adapdata(&connector->adapter, connector);
+ 	connector->adapter.algo_data = &connector->bit_data;
+ 
+diff -uparN kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_vdac.c hibmc/hibmc_drm_vdac.c
+--- kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_drm_vdac.c	2023-12-12 19:59:37.000000000 +0800
++++ hibmc/hibmc_drm_vdac.c	2024-04-25 14:51:56.849749740 +0800
+@@ -18,26 +18,6 @@
+ #include "hibmc_drm_drv.h"
+ #include "hibmc_drm_regs.h"
+ 
+-#define HIBMC_STANDARD_VREFRESH		60
+-
+-struct hibmc_resolution {
+-	int width;
+-	int height;
+-};
+-
+-static const struct hibmc_resolution hibmc_mode_tables[] = {
+-	{800, 600},
+-	{1024, 768},
+-	{1152, 864},
+-	{1280, 768},
+-	{1280, 720},
+-	{1280, 960},
+-	{1280, 1024},
+-	{1600, 1200},
+-	{1920, 1080},
+-	{1920, 1200},
+-};
+-
+ static int hibmc_connector_get_modes(struct drm_connector *connector)
+ {
+ 	int count;
+@@ -62,30 +42,10 @@ out:
+ 	return count;
+ }
+ 
+-static int hibmc_valid_mode(int width, int height)
+-{
+-	int i;
+-
+-	for (i = 0; i < ARRAY_SIZE(hibmc_mode_tables); i++) {
+-		if ((hibmc_mode_tables[i].width == width) &&
+-			(hibmc_mode_tables[i].height == height)) {
+-			return MODE_OK;
+-		}
+-	}
+-
+-	return MODE_NOMODE;
+-}
+-
+-static enum drm_mode_status hibmc_connector_mode_valid(
+-	struct drm_connector *connector, struct drm_display_mode *mode)
++static enum drm_mode_status hibmc_connector_mode_valid(struct drm_connector *connector,
++				      struct drm_display_mode *mode)
+ {
+-	int vrefresh = drm_mode_vrefresh(mode);
+-
+-	if ((vrefresh < HIBMC_STANDARD_VREFRESH - 1) ||
+-		(vrefresh > HIBMC_STANDARD_VREFRESH + 1))
+-		return MODE_NOMODE;
+-
+-	return hibmc_valid_mode(mode->hdisplay, mode->vdisplay);
++	return MODE_OK;
+ }
+ 
+ static void hibmc_connector_destroy(struct drm_connector *connector)
+diff -uparN kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_ttm.c hibmc/hibmc_ttm.c
+--- kernel-5.10.0-177.0.0/drivers/gpu/drm/hisilicon/hibmc/hibmc_ttm.c	2023-12-12 19:59:37.000000000 +0800
++++ hibmc/hibmc_ttm.c	2024-04-25 14:51:56.849749740 +0800
+@@ -28,7 +28,7 @@ int hibmc_mm_init(struct hibmc_drm_priva
+ 	struct drm_device *dev = hibmc->dev;
+ 
+ 	vmm = drm_vram_helper_alloc_mm(dev,
+-				       pci_resource_start(dev->pdev, 0),
++				       hibmc->fb_base,
+ 				       hibmc->fb_size);
+ 	if (IS_ERR(vmm)) {
+ 		ret = PTR_ERR(vmm);

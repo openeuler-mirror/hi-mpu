@@ -1,0 +1,48 @@
+#! /bin/sh
+PATH=/sbin:/usr/sbin:/usr/local/sbin:/root/bin:/usr/local/bin:/usr/bin:/bin
+echo 0 > /proc/sys/kernel/printk
+insmod /lib/net/ksecurec.ko
+insmod /lib/net/log_drv.ko
+insmod /lib/net/comm_drv.ko
+insmod /lib/net/mdio_drv.ko
+ 
+insmod /lib/net/msg_scm3_drv.ko
+insmod /lib/net/usb-common.ko
+insmod /lib/net/udc-core.ko
+insmod /lib/net/configfs.ko
+insmod /lib/net/libcomposite.ko
+insmod /lib/net/usb_drv.ko
+insmod /lib/net/dwc3.ko
+insmod /lib/net/hw_lock_drv.ko
+insmod /lib/net/mmc_core.ko
+insmod /lib/net/mmc_block.ko
+sleep 2
+insmod /lib/net/emmc_drv.ko
+#insmod /lib/net/sdio_drv.ko
+insmod /lib/net/localbus_drv.ko
+insmod /lib/net/gmac_drv.ko
+ifconfig eth2 192.168.0.11 up
+# include rc.functions
+        . /etc/init.d/rc.functions
+# creating device driver instances
+	echo "Making device instances:"
+	echo /sbin/mdev > /proc/sys/kernel/hotplug
+	mdev -s
+
+# Cleaning up the Directory tmp
+        echo "Cleaning up tmp :"
+	rm -rf /tmp/* >/dev/null
+
+#touch /var/log/wtmp to record user login history
+	touch /var/log/wtmp
+
+# setting up localhost loopback interface
+        echo "Setting up interface lo: "
+        ifconfig lo up 127.0.0.1
+
+#print uptime after finish running rc.start
+        if [ -r /proc/uptime ]
+        then
+                echo -n "System booting cost:"
+                cat /proc/uptime
+        fi

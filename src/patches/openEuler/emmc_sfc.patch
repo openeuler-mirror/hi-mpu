@@ -1,0 +1,293 @@
+diff --git a/sdio/himci.c b/sdio/himci.c
+index d51b171..d77ac7f 100644
+--- a/sdio/himci.c
++++ b/sdio/himci.c
+@@ -173,17 +173,18 @@ static void hi_mci_wait_card_idle(struct himci_host *host)
+ static void hi_mci_control_cclk(struct himci_host *host, u32 flag)
+ {
+     u32 regs;
+-    u32 cmdr = HISI_MMC_CMD_UPD_CLK | HISI_MMC_CMD_PRV_DAT_WAIT | HISI_MMC_CMD_START;
++    u32 cmdr = himci_readl(host->base + HISI_MCI_CMD);
+ 
+     regs = himci_readl(host->base + HISI_MCI_CLKENA);
++    cmdr |= HISI_MMC_CMD_UPD_CLK;
++    cmdr |= HISI_MMC_CMD_START;
+     if (flag == ENABLE) {
+         regs |= CCLK_ENABLE;
+     } else {
+         regs &= CCLK_DISABLE;
+     }
+     himci_writel(regs, host->base + HISI_MCI_CLKENA);
+-    himci_writel(0x0, host->base + HISI_MCI_CMDARG);
+-    wmb();
++    udelay(200);
+     hi_mci_wait_card_idle(host);
+     himci_writel(cmdr, host->base + HISI_MCI_CMD);
+ 
+@@ -198,13 +199,15 @@ static void hi_mci_set_cclk(struct himci_host *host, u32 cclk)
+ {
+     u32 reg_value;
+     u32 clk_base;
+-    u32 cmdr = HISI_MMC_CMD_UPD_CLK | HISI_MMC_CMD_PRV_DAT_WAIT | HISI_MMC_CMD_START;
++    u32 cmdr = himci_readl(host->base + HISI_MCI_CMD);
+ 
+ #ifdef EMMC_COMPILE
+     clk_base = EMMC_CLK_BASE;
+ #else
+     clk_base = SDIO_CLK_BASE;
+ #endif
++    cmdr |= HISI_MMC_CMD_UPD_CLK;
++    cmdr |= HISI_MMC_CMD_START;
+ 
+     reg_value = 0;
+     if (cclk < clk_base) {
+@@ -218,8 +221,6 @@ static void hi_mci_set_cclk(struct himci_host *host, u32 cclk)
+         }
+     }
+     himci_writel(reg_value, host->base + HISI_MCI_CLKDIV);
+-    himci_writel(0x0, host->base + HISI_MCI_CMDARG);
+-    wmb();
+     hi_mci_wait_card_idle(host);
+     himci_writel(cmdr, host->base + HISI_MCI_CMD);
+     if (hi_mci_wait_cmd_tx_success(host) != 0) {
+@@ -425,11 +426,9 @@ static s32 hi_mci_exec_cmd(struct himci_host *host, struct mmc_command *cmd, str
+     if (data) {
+         cmdr |= HISI_MMC_CMD_DAT_EXP;
+ 
+-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+-        if (data->flags & MMC_DATA_STREAM) {
++        if (data->flags & (1 << 10)) {
+             cmdr |= HISI_MMC_CMD_STRM_MODE;
+         }
+-#endif
+ 
+         if (data->flags & MMC_DATA_WRITE) {
+             cmdr |= HISI_MMC_CMD_DAT_WR;
+@@ -876,6 +875,7 @@ static s32 mmc_phase_config(u32 mode, u32 value)
+ 
+     switch (mode) {
+         case MMC_COMPATIBILITY_MODE:
++            lp_emmc_ctrl.val = 0;
+             lp_emmc_ctrl.bits.sc_sdio_drv_ps_sel = 0x4;
+             lp_subsys_reg_write(LP_SUBSYS_CSR_LPSC_EMMC_FUNC_CTRL_OFFSET_ADDR, lp_emmc_ctrl.val);
+             return 0;
+@@ -888,6 +888,7 @@ static s32 mmc_phase_config(u32 mode, u32 value)
+             break;
+         case MMC_HS200_SDR_MODE:
+             lp_emmc_ctrl.bits.sc_sdio_sap_ps_sel = value;
++            lp_emmc_ctrl.bits.sc_sdio_drv_ps_sel = 0x4;
+             break;
+         case MMC_HS400_DDR_MODE:
+             lp_emmc_ctrl.bits.sc_sdio_sap_ps_sel = 0x4;
+@@ -970,6 +971,14 @@ static void hi_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+         mmc_phase_config(MMC_HS_SDR_MODE, 0);
+         himci_writel(0x0, host->base + HISI_MCI_UHS_REG);
+     } else {
++#ifdef EMMC_COMPILE
++        if (ios->timing == MMC_TIMING_MMC_HS200) {
++            unsigned int value = himci_readl(host->base + HISI_MCI_CLKDIV);
++            if (value == 0) {
++                mmc_phase_config(MMC_HS200_SDR_MODE, g_lpsc_emmc_ctrl_reg);
++            }
++        }
++#endif
+         himci_writel(0x0, host->base + HISI_MCI_UHS_REG);
+     }
+ 
+@@ -1367,6 +1376,126 @@ static s32 hi_mci_gpp_write_protect(u8 type, u8 area_index)
+ 
+     return ret;
+ }
++
++s32 hi_mci_gpp_divide(u32 *gpp_size)
++{
++    u8 *ext_csd = NULL;
++    u32 gp_mult_0[GPP_MAX_NUM];
++    u32 gp_mult_1[GPP_MAX_NUM];
++    u32 gp_mult_2[GPP_MAX_NUM];
++    u32 wp_gp_size;
++    u32 ret;
++    u32 temp;
++    u8 base;
++    u8 i;
++
++    if (NULL == gpp_size)
++    {
++        return -EIO;
++    }
++
++    mmc_claim_host(g_host->mmc);
++    ret = mmc_get_ext_csd(g_host->mmc->card, &ext_csd);
++
++    if (ret)
++    {
++        LOG(LOG_ERROR, "get ext csd fail");
++        return ret;
++    }
++    mmc_release_host(g_host->mmc);
++
++    if (ext_csd[EXT_CSD_PARTITION_SETTING_COMPLETED] & GPP_COMPLETED)
++    {
++        LOG(LOG_ERROR, "GPP have divided");
++        return -EINVAL;
++    }
++
++    if (!(ext_csd[EXT_CSD_PARTITION_SUPPORT] & PARTITIONING_EN))
++    {
++        LOG(LOG_ERROR, "Not support GPP");
++        return -EINVAL;
++    }
++
++    if (!(ext_csd[EXT_CSD_PARTITION_SUPPORT] & EXT_ATTRIBUTE_EN))
++    {
++        LOG(LOG_ERROR, "Not support GPP EXT_ATTRIBUTE");
++        return ret;
++    }
++
++    wp_gp_size = MMC_BLK_SIZE * ext_csd[EXT_CSD_HC_WP_GRP_SIZE] * ext_csd[EXT_CSD_HC_ERASE_GRP_SIZE];
++    for(i = 0; i < GPP_MAX_NUM; i++)
++    {
++        if ((gpp_size[i] < wp_gp_size) || (gpp_size[i] > GPP_MAX_SIZE))
++        {
++            LOG(LOG_ERROR, "gpp_size(0x%x) less than wp_gp_size or greater than 1G",gpp_size[i]);
++            return -EINVAL;
++        }
++
++        if (gpp_size[i] % wp_gp_size)
++        {
++            LOG(LOG_ERROR, "gpp%d is not a multiple of wp_gp_size",i);
++            return -EINVAL;
++        }
++
++        temp = gpp_size[i] / wp_gp_size;
++        gp_mult_0[i] = temp & 0xff;
++        gp_mult_1[i] = (temp & 0xff00)>>8;
++        gp_mult_2[i] = (temp & 0xff0000)>>16;
++    }
++
++    mmc_claim_host(g_host->mmc);
++    ret = mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                        EXT_CSD_ERASE_GROUP_DEF, ERASE_GROUP_ENABLE, 0);
++    if (ret)
++    {
++       LOG(LOG_ERROR, "config erase group failed\n");
++       return ret;
++    }
++
++    for (i = 0; i < GPP_MAX_NUM; i++)
++    {
++        base = (u8)(EXT_CSD_GP_SIZE_MULT + i * GP_MULT_GP_NUM);
++
++        ret = mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                        base, (u8)gp_mult_0[i], 0);
++
++        ret |= mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                        base + 1, (u8)gp_mult_1[i], 0);
++
++        ret |= mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                        base + 2, (u8)gp_mult_2[i], 0);
++        if (ret)
++        {
++           LOG(LOG_ERROR, "config gpp mult size failed\n");
++           return ret;
++        }
++    }
++
++    ret = mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                EXT_PARTITIONS_ATTRIBUTE0, SYSTEM_CODE_ATTR, 0);
++
++    ret |= mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++                EXT_PARTITIONS_ATTRIBUTE1, SYSTEM_CODE_ATTR, 0);
++
++    if (ret)
++    {
++       LOG(LOG_ERROR, "config part attribute failed");
++       return ret;
++    }
++
++    ret = mmc_switch(g_host->mmc->card, EXT_CSD_CMD_SET_NORMAL,
++            EXT_CSD_PARTITION_SETTING_COMPLETED, GPP_COMPLETED, 0);
++
++    if (ret)
++    {
++       LOG(LOG_ERROR, "config completed failed");
++       return ret;
++    }
++
++    mmc_release_host(g_host->mmc);
++
++    return 0;
++}
+ #endif
+ 
+ static const struct mmc_host_ops g_hi_mci_ops = {
+@@ -1374,9 +1503,6 @@ static const struct mmc_host_ops g_hi_mci_ops = {
+     .set_ios = hi_mci_set_ios,
+     .get_ro = hi_mci_get_ro,
+     .hw_reset = hi_mci_hw_reset,
+-#ifdef EMMC_COMPILE
+-    .execute_tuning = hi_mci_hs200_tuning,
+-#endif
+ };
+ 
+ static irqreturn_t hisd_irq(s32 irq, void *dev_id)
+@@ -1436,7 +1562,7 @@ static s32 hi_mci_lp_clk_div_config(void)
+      * The SDIO frequency is divided by 8.
+      * The clock frequency in the AT phase is 400 MHz, and the clock frequency is 25 MHz after frequency division.
+      */
+-    lpsc_crg_div_ctrl.bits.sdio_clk_div_cnt = 0x10;
++    lpsc_crg_div_ctrl.bits.sdio_clk_div_cnt = 0x8;
+     /*
+      * The frequency of the eMMC is divided by 2, The clock frequency of the AT phase is 400 MHz.
+      * The frequency of the eMMC is divided by 4 in the logic.
+@@ -1485,7 +1611,9 @@ static void hi_mci_soft_reset(void)
+ 
+ #ifdef EMMC_COMPILE
+     /* record hs200 phase config value base on m3 emmc tuning */
+-    lp_subsys_reg_read(LP_SUBSYS_CSR_LPSC_EMMC_FUNC_CTRL_OFFSET_ADDR, &g_lpsc_emmc_ctrl_reg);
++    u32 lpc_emmc_ctrl = 0;
++    lp_subsys_reg_read(LP_SUBSYS_CSR_LPSC_EMMC_FUNC_CTRL_OFFSET_ADDR, &lpc_emmc_ctrl);
++    g_lpsc_emmc_ctrl_reg = (lpc_emmc_ctrl >> 4) & 0x7;
+     m_emmc_reset(LP_SUBSYS_CSR_LPSC_EMMC_CRG_CTRL_OFFSET_ADDR, LP_EMMC_MASK);
+     mmc_phase_config(MMC_COMPATIBILITY_MODE, 0);
+ #else
+@@ -1514,7 +1642,7 @@ static void hi_mci_mmc_init(struct mmc_host *mmc)
+ #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+     mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
+ #else
+-    mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR | MMC_CAP2_NO_SDIO | MMC_CAP2_NO_SD;
++    mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
+ #endif
+     mmc->f_max = EMMC_CCLK_MAX;
+ #else
+@@ -1931,6 +2059,19 @@ exit:
+     return ret;
+ }
+ 
++static s32 mmc_ioctl_gpp_divide(unsigned long arg)
++{
++    u32 gpp_size[4];
++    int ret;
++    ret = copy_from_user(gpp_size, (void __user*)arg, sizeof(gpp_size));
++    if (ret) {
++        LOG(LOG_ERROR, "mmc copy from user fail!");
++        return -EAGAIN;
++    }
++    ret = hi_mci_gpp_divide(gpp_size);
++    return ret;
++
++}
+ static long mmc_ioctl(struct file *pfile, u32 cmd, unsigned long arg)
+ {
+     s32 ret;
+@@ -1956,6 +2097,10 @@ static long mmc_ioctl(struct file *pfile, u32 cmd, unsigned long arg)
+             ret = mmc_ioctl_erase(arg);
+             break;
+ 
++        case MMC_GPP_DIV:
++            ret = mmc_ioctl_gpp_divide(arg);
++            break;
++
+         default:
+             LOG(LOG_ERROR, "cmd invalid fail cmd = 0x%x", _IOC_NR(cmd));
+             ret = -EFAULT;

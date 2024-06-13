@@ -1,0 +1,502 @@
+#!/bin/sh
+
+PWD=`pwd`
+source $PWD/common
+source $PWD/../version_${KERNEL_VERSION_MAIN}
+
+#
+#Generate Signatured Binary File
+#$1: Firmware config file 
+#
+check_sys_tools
+if [ "$#" != "1" ]
+then
+	log_error "$0 firwmare_config_file"
+	exit -1
+fi
+
+is_file_exist $1
+if [ "$?" != "1" ]
+then
+	log_error "Need a firmware config file"
+	exit -1	
+fi
+
+PADDING_FILE=padding.bin
+is_file_exist $PADDING_FILE
+if [ "$?" != "1" ]
+then
+	dd if=/dev/zero of=$PADDING_FILE bs=1024 count=1
+fi
+
+source $PWD/$1
+
+export FW_SECTION_LEN_LIST
+export FW_EXTRA_SECTION_LEN_LIST
+export FW_CODE_LENTH
+
+function get_fw_type_code()
+{
+	case $1 in
+		"l0fw")
+			echo "0000"
+		;;
+		"l1fw")
+			echo "0100"
+		;;
+		"u-boot")
+			echo "0200"
+		;;
+		"rootfs")
+			echo "0300"
+		;;
+		"bios")
+			echo "0500"
+		;;
+		
+		*)
+			log_error "Unsupported firmware type: $1!"
+			exit 1
+		;;
+	esac	
+}
+
+function get_fw_section_type_code()
+{
+	case $1 in
+		"host_root_pubk")
+			echo "01000000"
+		;;
+		"host_subkey_cert")
+			echo "02000000"
+		;;
+		"host_code_sign")
+			echo "03000000"
+		;;
+		"code")
+			echo "04000000"
+		;;
+		"guest_root_pubk")
+			echo "05000000"
+		;;
+		"guest_subkey_cert")
+			echo "06000000"
+		;;
+		"guest_code_sign")
+			echo "07000000"
+		;;
+		"host_rim")
+			echo "0a000000"
+		;;
+		"guest_rim")
+			echo "0b000000"
+		;;
+		"h2ppk_cert")
+			echo "1e000000"
+		;;
+		"repairpk_cert")
+			echo "1f000000"
+		;;
+		"cms_host_root_cert")
+			echo "10000000"
+		;;
+		"cms_host_cms_cert")
+			echo "11000000"
+		;;
+		"cms_host_crl_cert")
+			echo "12000000"
+		;;
+		"cms_guest_root_cert")
+			echo "18000000"
+		;;
+		"cms_guest_cms_cert")
+			echo "19000000"
+		;;
+		"cms_guest_crl_cert")
+			echo "1a000000"
+		;;
+		"cms_code")
+			echo "07000000"
+		;;
+		*)
+			log_error "Unsupported firmware section type: $1!"
+			exit -1
+		;;
+	esac
+}
+
+# prepare_code_sign_section_data
+# Merge sign_data & signed_data and append code_sign_alg to the end of the file
+# code_sign_alg offset is code_hash(32) + secure_version(16)
+#           + sign_value(512) = 560
+# $1 xxx_hash_sign.bin(Code hash and secure version)
+# $2 xxx_hash_sign.bin.rsa(Signature data)
+# 
+function prepare_code_sign_section_data()
+{
+	if [ "$FW_SIGN_TYPE" == 1 ]
+	then
+		return
+	fi
+
+	SECTION_ALL_PADDING=Y
+	
+	for section_file in $3
+	do
+		if [ "$section_file" != "padding" ]
+		then
+			SECTION_ALL_PADDING=N
+		fi
+	done
+
+	if [ "$SECTION_ALL_PADDING" == "Y" ]
+	then
+		log_info "Section file is all padding, no need to prepare section data!"
+		return
+	fi
+	
+	if [ ! -e ${FW_TYPE}_hash_sign.bin ]
+	then
+		log_error "Original ${FW_TYPE}_hash_sign.bin does not exit!"
+		exit -1
+	fi
+
+	#Merge xxx_hash_sign.bin & xxx_hash_sign.bin.rsa
+	cat $2 >> $1
+	file_size=`stat -c %s $1`
+	bin_mod $1 $file_size 4 "$CODE_SIGN_ALG"
+	cp $2 $2.bak
+	mv $1 $2
+}
+
+#$1 fw_image_name
+#$2 fw_section files
+#$3 fw_section_size
+function image_write_section_data()
+{
+	FW_SECTION_LEN_LIST=""
+	
+	#Generate code sign setcion data
+	prepare_code_sign_section_data ${FW_TYPE}_hash_sign.bin ${FW_TYPE}_hash_sign.bin.rsa "$2"
+	
+	for section_file in $2
+	do
+		echo "Processing section file: $section_file"
+		if [ "$section_file" == "padding" ] 
+		then
+			pad_len=$FW_NORMAL_SECTION_SIZE
+			FW_SECTION_LEN_LIST+=$pad_len
+		else 
+			is_file_exist $section_file
+			if [ "$?" != "1" ]
+			then
+				log_error "Section File missing!"
+				echo "Firmware section lenthes: $FW_SECTION_LEN_LIST"
+				exit -1
+			fi
+			section_file_len=`stat -c %s $section_file`
+			FW_SECTION_LEN_LIST+=`stat -c %s $section_file`
+
+			#Write section file to image
+			cat $section_file >> $1
+			pad_len=`expr $FW_NORMAL_SECTION_SIZE - $section_file_len`
+		fi
+		FW_SECTION_LEN_LIST+=":"
+		echo "FW_SECTION_LEN_LIST:"$FW_SECTION_LEN_LIST
+		# 2k align 
+		while (("$pad_len" < 0))
+		do
+			((pad_len += $FW_NORMAL_SECTION_SIZE))
+		done
+
+		extend_file_with_zero $1 $pad_len
+	done
+
+	echo "Firmware section lenthes: $FW_SECTION_LEN_LIST"
+	for section_file in $3
+	do
+		echo "Processing section file: $section_file"
+		if [ "$section_file" == "padding" ] 
+		then
+			pad_len=$FW_NORMAL_SECTION_SIZE
+			FW_SECTION_LEN_LIST+=$pad_len
+		else 
+			is_file_exist $section_file
+			if [ "$?" != "1" ]
+			then
+				log_error "Section File missing!"
+				echo "Firmware section lenthes: $FW_SECTION_LEN_LIST"
+				exit -1
+			fi
+			section_file_len=`stat -c %s $section_file`
+			FW_SECTION_LEN_LIST+=`stat -c %s $section_file`
+
+			#Write section file to image
+			cat $section_file >> $1
+			pad_len=`expr $FW_NORMAL_SECTION_SIZE - $section_file_len`
+		fi
+		FW_SECTION_LEN_LIST+=":"
+		echo "FW_SECTION_LEN_LIST:"$FW_SECTION_LEN_LIST
+		extend_file_with_zero $1 $pad_len
+	done
+
+	echo "Firmware section lenthes: $FW_SECTION_LEN_LIST"
+}
+
+#$1 fw_image_name
+#$2 fw_code_file
+function image_write_code_data()
+{
+	FW_CODE_LENTH=`stat -c %s $2`
+	cat $2 >> $1
+}
+
+#$1 image_hdr_file_name
+function image_hdr_write_usr_data()
+{
+	content_len=0
+	case $FW_TYPE in
+		"l0fw")
+			fw_build_version=$L0_BUILD
+		;;
+		"l1fw")
+			fw_build_version=$L1_BUILD
+		;;
+		"u-boot")
+			fw_build_version=$UBOOT_BUILD
+		;;
+		"rootfs")
+			fw_build_version=0
+		;;
+		*)
+			log_error "image_hdr_write_usr_data: Firware type \"$FW_TYPE\" not supported!"
+			exit -1
+		;;
+	esac
+	fw_version_str=`printf "%02x%02x%02x%02x" $MAJOR $MINOR $REV $fw_build_version`
+	fw_build_time_str=`printf "%02x%02x%02x%02x%02x%02x" $YEAR $MONTH $DAY $HOUR $MINUTE $SECOND`
+	#Write versions into header
+	echo -n $fw_version_str >> $1
+	#Write build_time into header
+	echo -n $fw_build_time_str >> $1
+	extra_section_num=`printf "%02x00" $FW_EXTRA_SECTION_CNT`
+	#Write extra_section_num into header
+	echo -n $extra_section_num >> $1
+	#Write sign_type cms/rsa into header
+	fw_sign_type=`printf "%02x000000" $FW_SIGN_TYPE`
+	echo -n $fw_sign_type >> $1
+	conten_len=`expr $conten_len + 16`
+	#Pad 0 to the reset of the usr_data
+	pad_len=`expr $FW_HDR_USR_DATA_LEN - $conten_len`
+	while [ "$pad_len" != "0" ]
+	do
+		echo -n "00" >> $1
+		pad_len=`expr $pad_len - 1`
+	done
+}
+
+#
+# Append zero data for reserved sections to image_hdr
+# $1 filename
+# $2 section_cnt 
+# 
+function pad_reserve_sections()
+{
+	extend_len=`expr $2 \* $FW_HDR_SECTION_INFO_SIZE`
+	echo "<=======EXTEND_LEN:$extend_len SECTION_CNT:$2===========>"
+	while [ "$extend_len" != "0" ]
+	do
+		echo -n "00" >> $1
+		extend_len=`expr $extend_len - 1`
+	done
+}
+
+function debug_show_file()
+{
+	echo "$1"
+	hexdump -v -C $2 -n 128
+	echo 
+}
+
+#$1 image_hdr_file_name
+#$2 fw_section_list
+#$3 fw_section_len_list
+function image_build_hdr()
+{
+	echo "image_build_hdr: $1 $2 $3 $4"
+
+	file_len=0
+	section_id=1
+	aligned_cnt=8
+	#Starting offset is 2k
+	section_off=$FW_NORMAL_SECTION_SIZE
+	#Preamble
+	echo -n $FW_HDR_PREAMBLE >> $1
+
+	#File len set to 0 at first
+	echo -n 00000000 >> $1
+
+	#FW type & section_num (little endian) each 2 bytes long
+	fw_type=`get_fw_type_code $FW_TYPE`
+	echo -n $fw_type >> $1
+	section_num=`printf "%02x00" $FW_SECTION_CNT`
+	echo -n $section_num >> $1
+
+	#User data
+	image_hdr_write_usr_data $1
+
+	debug_show_file "image_build_hdr - usr_data built" $1
+	
+	#Process normal section info
+	for cur_section in $2
+	do
+		log_info "Processing section $cur_section..."
+		if [ "$cur_section" == "padding" ]
+		then
+			#Reserved section type
+			echo -n 00000000 >> $1
+			#Reserved section offset
+			echo -n 00000000 >> $1
+			#Reserved section length
+			echo -n 00000000 >> $1
+			
+			section_off=`expr $section_off + $FW_NORMAL_SECTION_SIZE`
+		else
+			#Section type
+			section_type=`get_fw_section_type_code $cur_section`
+			echo -n $section_type >> $1
+
+			#Section offset
+			section_len=`echo $4 | cut -d':' -f$section_id`
+			hex_byte_str=`u32_to_hex_byte_array $section_off`
+			echo -n $hex_byte_str >> $1
+			# 2k align 
+			cur_section_size=0
+			while (("$cur_section_size" < "$section_len"))
+			do
+				((cur_section_size += $FW_NORMAL_SECTION_SIZE))
+				echo "The sum is: $cur_section_size"
+			done
+
+			section_off=`expr $section_off + $cur_section_size`
+
+			#Section length
+			section_len=`echo $4 | cut -d':' -f$section_id`
+			hex_byte_str=`u32_to_hex_byte_array $section_len`
+			echo -n $hex_byte_str >> $1
+		fi
+		section_id=`expr $section_id + 1`
+		file_len=`expr $file_len + $cur_section_size`
+	done	
+
+	debug_show_file "image_build_hdr - normal section_info built" $1
+
+	#Process code section info
+	code_section_off=`expr $FW_EXTRA_SECTION_CNT \* $FW_NORMAL_SECTION_SIZE`
+	code_section_off=`expr $section_off + $code_section_off`
+	# rootfs code is start from 0 
+	if [ "$FW_TYPE" == "rootfs" ] 
+	then
+		code_section_off=0
+	fi
+
+	section_type=`get_fw_section_type_code code`
+	echo -n $section_type >> $1
+	hex_byte_str=`u32_to_hex_byte_array $code_section_off`
+	echo -n $hex_byte_str >> $1
+	section_len=`stat -c %s $FW_CODE_FILE`
+	hex_byte_str=`u32_to_hex_byte_array $section_len`
+	echo -n $hex_byte_str >> $1
+	#Code data is not aligned to 2K
+	file_len=`expr $file_len + $section_len`
+
+	#Process reserved section info, padding zero
+	resv_section_cnt=`expr $FW_SECTION_MAX_NUM - $FW_SECTION_CNT`
+	pad_reserve_sections $1 $resv_section_cnt
+	
+	#Head magic0
+	echo -n $FW_HDR_MAGIC >> $1
+	
+	debug_show_file "image_build_hdr - usr_data built" $1
+	
+	#Process normal extra_section info
+	
+	for cur_section in $3
+	do
+		log_info "Processing extra_section $cur_section..."
+		if [ "$cur_section" == "padding" ]
+		then
+			#Reserved section type
+			echo -n 00000000 >> $1
+			#Reserved section offset
+			echo -n 00000000 >> $1
+			#Reserved section length
+			echo -n 00000000 >> $1
+			
+			section_off=`expr $section_off + $FW_NORMAL_SECTION_SIZE`
+		else
+			#Section type
+			section_type=`get_fw_section_type_code $cur_section`
+			echo -n $section_type >> $1
+
+			#Section offset
+			hex_byte_str=`u32_to_hex_byte_array $section_off`
+			echo -n $hex_byte_str >> $1
+			section_off=`expr $section_off + $FW_NORMAL_SECTION_SIZE`
+
+			#Section length
+			section_len=`echo $4 | cut -d':' -f$section_id`
+			hex_byte_str=`u32_to_hex_byte_array $section_len`
+			echo -n $hex_byte_str >> $1
+		fi
+		section_id=`expr $section_id + 1`
+		file_len=`expr $file_len + $FW_NORMAL_SECTION_SIZE`
+	done
+
+	resv_extra_section_cnt=`expr $FW_EXTRA_SECTION_MAX_NUM - $FW_EXTRA_SECTION_CNT`
+
+	echo -n $resv_extra_section_cnt
+	pad_reserve_sections $1 $resv_extra_section_cnt
+	# adapt old image_head, fill 8 byte zeros
+	echo -n 00000000 >> $1
+	echo -n 00000000 >> $1
+	#Head magic1
+	echo -n $FW_HDR_MAGIC >> $1
+	debug_show_file "iamge_build_hdr all sections before file_len" $1
+
+	# Hdr_len: preamble(4) + file_len(4) + fw_type(2)
+	#	   + section_num(2) + usr_data(64)
+	#          + section_info_list(SECTION_MAX_NUM * 12) + magic0(4) + reverse(8) + magic1(4) + section_extra_info_list(SECTION_MAX_NUM * 12)
+	#          = 96 + (FW_SECTION_MAX_NUM + FW_EXTRA_SECTION_MAX_NUM) * FW_HDR_SECTION_INFO_SIZE
+	image_hdr_len=`expr $FW_SECTION_MAX_NUM \* $FW_HDR_SECTION_INFO_SIZE`
+	image_hdr_len=`expr $image_hdr_len + $FW_EXTRA_SECTION_MAX_NUM \* $FW_HDR_SECTION_INFO_SIZE`
+	image_hdr_len=`expr $image_hdr_len + 92`	
+
+	# File_len must add header section  data(Align to 2K) 
+	file_len=`expr $file_len + $FW_NORMAL_SECTION_SIZE`
+	hex_byte_str=`u32_to_hex_byte_array $file_len`
+	hex2bin $1 .$1.tmp
+	bin_mod .$1.tmp 4 4 $hex_byte_str > /dev/null
+	#Pad header
+	pad_len=`expr $FW_NORMAL_SECTION_SIZE - $image_hdr_len`
+	#echo "xxxxxxxxxxx:PAD_LEN ==> $pad_len"
+	extend_file_with_zero .$1.tmp $pad_len
+	debug_show_file "image_build_hdr - padding zeros(head_content $image_hdr_len bytes $pad_len bytes)" .$1.tmp
+	mv .$1.tmp $1
+	debug_show_file "image_build_hdr - hdr done" $1
+}
+
+rm -f $FW_IMAGE_NAME
+rm -f $FW_IMAGE_NAME.sections
+touch $FW_IMAGE_NAME.sections
+#Write all section data
+image_write_section_data $FW_IMAGE_NAME.sections "$FW_SECTION_FILES" "$FW_EXTRA_SECTION_FILES"
+
+debug_show_file "Data sections:" $FW_IMAGE_NAME.sections
+#Write code data
+image_write_code_data $FW_IMAGE_NAME.sections $FW_CODE_FILE
+debug_show_file "Data & CODE sections:" $FW_IMAGE_NAME.sections
+#Build image header
+image_build_hdr $FW_IMAGE_NAME "$FW_SECTION_LIST" "$FW_EXTRA_SECTION_LIST" "$FW_SECTION_LEN_LIST"
+#Merge image header & content
+cat $FW_IMAGE_NAME.sections >> $FW_IMAGE_NAME

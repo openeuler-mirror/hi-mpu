@@ -1,0 +1,46 @@
+#Common versions
+export MAJOR=16
+export MINOR=1
+export REV=10
+
+#Private build version
+export SDK_BUILD=2
+export L0_BUILD=2
+export L1_BUILD=2
+export UBOOT_BUILD=2
+export PME_BUILD=2
+#Secure firmware versions
+export L0FW_SECURE_VERSION=1
+export L1FW_SECURE_VERSION=1
+export UBOOT_SECURE_VERSION=1
+#Secure firmware version revoke masks, low/high mean low 16 bits or high 16 bits
+export L0FW_SECVER_REVOKE_MASK_LOW=0
+export L0FW_SECVER_REVOKE_MASK_HIGH=0
+export L1FW_SECVER_REVOKE_MASK_LOW=0
+export L1FW_SECVER_REVOKE_MASK_HIGH=0
+export UBOOT_SECVER_REVOKE_MASK_LOW=0
+export UBOOT_SECVER_REVOKE_MASK_HIGH=0
+
+#Version strings
+export SDK_VERSION=$MAJOR.$MINOR.$REV.$SDK_BUILD
+export L0FW_VERSION=$MAJOR.$MINOR.$REV.$L0_BUILD
+export L1FW_VERSION=$MAJOR.$MINOR.$REV.$L1_BUILD
+export UBOOT_VERSION=$MAJOR.$MINOR.$REV.$UBOOT_BUILD
+export PME_VERSION=$MAJOR.$MINOR.$REV.$PME_BUILD
+
+#Build Time
+export BUILD_TIME=`date +"%Y-%m-%d-%H:%M:%S"`
+export BUILD_TIME_YEAR=`date +%y`
+export BUILD_TIME_MONTH=`date +%m`
+export BUILD_TIME_DAY=`date +%d`
+export BUILD_TIME_HOUR=`date +%H`
+export BUILD_TIME_MINUTE=`date +%M`
+export BUILD_TIME_SECOND=`date +%S`
+
+#Remove staring '0' of date strings
+export YEAR=`expr $BUILD_TIME_YEAR + 0`
+export MONTH=`expr $BUILD_TIME_MONTH + 0`
+export DAY=`expr $BUILD_TIME_DAY + 0`
+export HOUR=`expr $BUILD_TIME_HOUR + 0`
+export MINUTE=`expr $BUILD_TIME_MINUTE + 0`
+export SECOND=`expr $BUILD_TIME_SECOND + 0`

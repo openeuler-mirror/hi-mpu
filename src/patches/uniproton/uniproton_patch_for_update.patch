@@ -1,0 +1,178 @@
+diff -uparN UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c UniProton-v1.0.1_update/demos/hi3093/apps/openamp/rpmsg_service.c
+--- UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c	2023-09-20 04:34:28.047420213 +0000
++++ UniProton-v1.0.1_update/demos/hi3093/apps/openamp/rpmsg_service.c	2023-09-20 04:41:59.615420421 +0000
+@@ -39,9 +39,10 @@ int send_message(unsigned char *message,
+     return rpmsg_send(&g_ept, message, len);
+ }
+ 
+-U64 counts_sends[2500];
++#define COUNTS_SENDS 2500
++U64 counts_sends[COUNTS_SENDS];
+ unsigned int count_send = 0;
+-unsigned int flag_uniproton = 2500;
++unsigned int flag_uniproton = COUNTS_SENDS;
+ 
+ static void write_message_send(unsigned int data_len)
+ {
+@@ -55,10 +56,11 @@ static void write_message_send(unsigned
+         PRT_Printf("Send more data than the maximum buffer\r\n");
+         return;
+     }
+-    memset(buffer_address, 'a', 16);
++    
++    memset(buffer_address, 'a', data_len);
+     OS_EMBED_ASM("MRS  %0, CNTVCT_EL0" : "=r"(end) : : "memory", "cc");
+ 
+-    int ret = rpmsg_send_nocopy(g_rpmsg_dst_ept, (void *)buffer_address, data_len);
++    int ret = rpmsg_send_offchannel_nocopy_hwi(g_rpmsg_dst_ept, (void *)buffer_address, data_len);
+     if (ret < 0) {
+         PRT_Printf("Failed to send data...\r\n");
+         return;
+@@ -68,11 +70,15 @@ static void write_message_send(unsigned
+         counts_sends[count_send] = end - start;
+     }
+ 
+-    count_send ++;
++    count_send++;
+     if (count_send == flag_uniproton) {
+-        for (int i = 0; i < flag_uniproton; i++) {
++        long sum = 0;
++        for (int i = 1; i < flag_uniproton; i++) {
++            sum += counts_sends[i];
+             PRT_Printf("UniProton i = %d, nocopy = %llu\n", i, counts_sends[i]);
+         }
++
++        PRT_Printf("UniProton %d byte average = %llu\n", data_len, sum / (COUNTS_SENDS - 1));
+     }
+ 
+     return;
+@@ -82,7 +88,8 @@ int rpmsg_endpoint_cb(struct rpmsg_endpo
+ {
+     g_openampFlag = true;
+     g_rpmsg_dst_ept = ept;
+-    write_message_send(16);
++    int data_len = 16;
++    write_message_send(data_len);
+  
+     return OS_OK;
+ }
+diff -uparN UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/include/openamp/rpmsg.h UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/include/openamp/rpmsg.h
+--- UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/include/openamp/rpmsg.h	2022-12-13 03:21:05.000000000 +0000
++++ UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/include/openamp/rpmsg.h	2023-09-20 04:38:02.907634446 +0000
+@@ -102,6 +102,8 @@ struct rpmsg_device_ops {
+ 				      uint32_t src, uint32_t dst,
+ 				       const void *data, int len);
+ 	int (*release_tx_buffer)(struct rpmsg_device *rdev, void *txbuf);
++	int (*send_offchannel_nocopy_hwi)(struct rpmsg_endpoint *ept, struct rpmsg_device *rdev,
++					   const void *buffer_addr, int data_len);
+ };
+ 
+ /**
+@@ -536,6 +538,17 @@ static inline unsigned int is_rpmsg_ept_
+ 	return ept && ept->rdev && ept->dest_addr != RPMSG_ADDR_ANY;
+ }
+ 
++/**
++ * huawei self-developed code
++ * rpmsg_send_offchannel_nocopy_hwi - send message data for nocopy
++ *
++ * @ept: pointer to rpmsg endpoint
++ * @buffer_addr: message address
++ * @data_len: message length
++ * @return number of bytes it has sent or negative error value on failure.
++*/
++int rpmsg_send_offchannel_nocopy_hwi(struct rpmsg_endpoint *ept, const void *buffer_addr, int data_len);
++
+ #if defined __cplusplus
+ }
+ #endif
+diff -uparN UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/remoteproc/remoteproc.c UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/remoteproc/remoteproc.c
+--- UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/remoteproc/remoteproc.c	2022-12-13 03:21:05.000000000 +0000
++++ UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/remoteproc/remoteproc.c	2023-09-20 04:38:11.938411703 +0000
+@@ -174,7 +174,7 @@ int remoteproc_set_rsc_table(struct remo
+ struct remoteproc *remoteproc_init(struct remoteproc *rproc,
+ 				   const struct remoteproc_ops *ops, void *priv)
+ {
+-	if (!rproc || !ops)
++	if (!rproc || !ops || !priv)
+ 		return NULL;
+ 
+ 	memset(rproc, 0, sizeof(*rproc));
+diff -uparN UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg.c UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg.c
+--- UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg.c	2022-12-13 03:21:05.000000000 +0000
++++ UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg.c	2023-09-20 04:38:18.680448961 +0000
+@@ -353,3 +353,18 @@ void rpmsg_destroy_ept(struct rpmsg_endp
+ 		(void)rpmsg_send_ns_message(ept, RPMSG_NS_DESTROY);
+ 	rpmsg_unregister_endpoint(ept);
+ }
++
++int rpmsg_send_offchannel_nocopy_hwi(struct rpmsg_endpoint *ept, const void *buffer_addr, int data_len)
++{
++	struct rpmsg_device *rdev;
++    if (!ept || !ept->rdev || !buffer_addr || data_len < 0) {
++        return RPMSG_ERR_PARAM;
++    }
++
++    rdev = ept->rdev;
++    if (rdev->ops.send_offchannel_nocopy_hwi) {
++        return rdev->ops.send_offchannel_nocopy_hwi(ept, rdev, buffer_addr, data_len);
++    }
++
++    return RPMSG_ERR_PARAM;
++}
+diff -uparN UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg_virtio.c UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg_virtio.c
+--- UniProton-v1.0.1/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg_virtio.c	2022-12-13 03:21:05.000000000 +0000
++++ UniProton-v1.0.1_update/demos/hi3093/component/open-amp/lib/rpmsg/rpmsg_virtio.c	2023-09-20 04:38:36.726482722 +0000
+@@ -517,6 +517,44 @@ static int rpmsg_virtio_send_offchannel_
+ 	return rpmsg_virtio_send_offchannel_nocopy(rdev, src, dst, buffer, len);
+ }
+ 
++static int rpmsg_virtio_send_offchannel_nocopy_hwi(struct rpmsg_endpoint *ept,
++						 struct rpmsg_device *rdev, const void *buffer_addr, int data_len)
++{
++    struct rpmsg_virtio_device *rvdev;
++    struct rpmsg_hdr *rp_hdr;
++    uint32_t buff_len;
++    int status;
++
++    /* write header for message */
++    rp_hdr = RPMSG_LOCATE_HDR(buffer_addr);
++    uint16_t idx = rp_hdr->reserved;
++    rp_hdr->dst = ept->dest_addr;
++    rp_hdr->src = ept->addr;
++    rp_hdr->len = data_len;
++    rp_hdr->reserved = 0;
++    rp_hdr->flags = 0;
++
++    rvdev = metal_container_of(rdev, struct rpmsg_virtio_device, rdev);
++    metal_mutex_acquire(&rdev->lock);
++
++#ifndef VIRTIO_DEVICE_ONLY
++    if (rpmsg_virtio_get_role(rvdev) == RPMSG_HOST)
++        buff_len = rvdev->config.h2r_buf_size;
++    else
++#endif /* !VIRTIO_DEVICE_ONLY */
++		buff_len = virtqueue_get_buffer_length(rvdev->svq, idx);
++
++    /* Enqueue buffer on virtqueue. */
++    status = rpmsg_virtio_enqueue_buffer(rvdev, (void *)rp_hdr, buff_len, idx);
++    RPMSG_ASSERT(status == VQUEUE_SUCCESS, "failed to enqueue buffer\r\n");
++    /* Let the other side know that there is a job to process. */
++    virtqueue_kick(rvdev->svq);
++
++    metal_mutex_release(&rdev->lock);
++
++    return data_len;
++}
++
+ /**
+  * rpmsg_virtio_tx_callback
+  *
+@@ -718,6 +756,7 @@ int rpmsg_init_vdev_with_config(struct r
+ 	rdev->ops.get_tx_payload_buffer = rpmsg_virtio_get_tx_payload_buffer;
+ 	rdev->ops.send_offchannel_nocopy = rpmsg_virtio_send_offchannel_nocopy;
+ 	rdev->ops.release_tx_buffer = rpmsg_virtio_release_tx_buffer;
++	rdev->ops.send_offchannel_nocopy_hwi = rpmsg_virtio_send_offchannel_nocopy_hwi;
+ 	role = rpmsg_virtio_get_role(rvdev);
+ 
+ #ifndef VIRTIO_DEVICE_ONLY

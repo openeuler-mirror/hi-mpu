@@ -1,0 +1,166 @@
+#!/bin/sh
+
+PWD=`pwd`
+source $PWD/common
+source $PWD/../version_${KERNEL_VERSION_MAIN}
+
+#
+# CMS_ROOT_CERT_G1_BIN is used for caculate cert hash, and fill hash to l1fw.bin, used for verify cms image in l1fw
+# CMS_ROOT_CERT_HASH_OFF is stationary offset in l1fw.bin, this offset value could change by modify file secure_l1fw.lds before compile l1fw
+# CMS_ROOT_CERT_HASH_SIZE could not be changed
+#
+CMS_ROOT_CERT_G1_BIN=host_cms_root_cert_g1.bin
+CMS_ROOT_CERT_G2_BIN=host_cms_root_cert_g2.bin
+
+CMS_ROOT_CERT_HASH_OFF=512
+CMS_ROOT_CERT_HASH_SIZE=32
+
+check_sys_tools
+#
+# Generate binary file for signature
+# $1: Input binary file (used for calculate hash using sha256sum).e.g: l0fw.bin , l1fw.bin, u-boot.bin
+# 
+if [ "$#" != 1 ]
+then
+	log_error "$0 input_file"
+	exit 1
+fi
+
+is_file_exist $1
+if [ "$?" != "1" ]
+then
+	log_error "Need firmware binary file"
+	exit 1
+fi
+
+PADDING_FILE=padding.bin
+is_file_exist $PADDING_FILE
+if [ "$?" != "1" ]
+then
+	dd if=/dev/zero of=$PADDING_FILE bs=1024 count=1
+fi
+
+#$1 secure_version
+function is_secure_version_valid()
+{
+	if [ "$1" == "0" ]
+	then
+		log_error "secure_version cannot be 0"
+		exit 1
+	fi
+
+	if [ $1 -gt 17 ]
+	then
+		log_error "secure_version cannot be greater than 17"
+		exit 1
+	fi
+}
+
+function get_fw_secure_version()
+{
+	case $1 in
+		"l0fw")
+			echo $L0FW_SECURE_VERSION
+		;;
+		"l1fw")
+			echo $L1FW_SECURE_VERSION
+		;;
+		"u-boot")
+			echo $UBOOT_SECURE_VERSION
+		;;
+		*)
+			log_error "get_fw_secure_version: unsupported fw type - $1!"
+			exit 1
+		;;
+	esac
+}
+
+function get_fw_secver_revoke_mask_low()
+{
+	case $1 in
+		"l0fw")
+			echo $L0FW_SECVER_REVOKE_MASK_LOW
+		;;
+		"l1fw")
+			echo $L1FW_SECVER_REVOKE_MASK_LOW
+		;;
+		"u-boot")
+			echo $UBOOT_SECVER_REVOKE_MASK_LOW
+		;;
+		*)
+			log_error "get_fw_secver_revoke_mask: unsupported fw type - $1!"
+			exit 1
+		;;
+	esac
+}
+
+function get_fw_secver_revoke_mask_high()
+{
+	case $1 in
+		"l0fw")
+			echo $L0FW_SECVER_REVOKE_MASK_HIGH
+		;;
+		"l1fw")
+			echo $L1FW_SECVER_REVOKE_MASK_HIGH
+		;;
+		"u-boot")
+			echo $UBOOT_SECVER_REVOKE_MASK_HIGH
+		;;
+		*)
+			log_error "get_fw_secver_revoke_mask: unsupported fw type - $1!"
+			exit 1
+		;;
+	esac
+}
+
+#$1 file name
+function fill_cms_root_cert_hash_to_l1fw()
+{
+	log_info "Fill cms root cert hash to $1"
+	CMS_ROOT_CERT_HASH_BIN=cms_root_cert_hash.bin
+	HASH_END_OFF=$(($CMS_ROOT_CERT_HASH_OFF+$CMS_ROOT_CERT_HASH_SIZE*2))
+	#Generate cms root cert hash for Binary file
+	CERT_HASH_G1=`sha256sum -b $CMS_ROOT_CERT_G1_BIN | cut -d' ' -f1`
+	CERT_HASH_G2=`sha256sum -b $CMS_ROOT_CERT_G2_BIN | cut -d' ' -f1`
+	echo $CERT_HASH_G1 > cms_root_cert_hash
+	echo $CERT_HASH_G2 >> cms_root_cert_hash
+	rm -f $CMS_ROOT_CERT_HASH_BIN
+	hex2bin cms_root_cert_hash $CMS_ROOT_CERT_HASH_BIN 
+	hexdump -v -C $CMS_ROOT_CERT_HASH_BIN
+	cp $1 "$1".bk
+	dd if=$CMS_ROOT_CERT_HASH_BIN of=$1 bs=1 seek=$CMS_ROOT_CERT_HASH_OFF
+	dd if="$1".bk of=$1 bs=1 seek=$HASH_END_OFF skip=$HASH_END_OFF
+	rm -f "$1".bk cms_root_cert_hash
+}
+
+PREFIX=`echo $1 | cut -d'.' -f1`
+OUTPUT_BIN=${PREFIX}_hash_sign.bin
+SECURE_VERSION=`get_fw_secure_version $PREFIX`
+SECVER_REVOKE_MASK_LOW=`get_fw_secver_revoke_mask_low $PREFIX`
+SECVER_REVOKE_MASK_HIGH=`get_fw_secver_revoke_mask_high $PREFIX`
+is_secure_version_valid $SECURE_VERSION
+if [ "$?" != "0" ]
+then
+	log_error "Invalid secure version!"
+	exit -1
+fi
+
+if [ "$PREFIX" == "l1fw" ]
+then 
+	fill_cms_root_cert_hash_to_l1fw $1
+	sh lzma_sub_gen.sh $1 $1
+fi
+
+rm -f $OUTPUT_BIN
+
+#Generate Hash for Binary file
+CODE_HASH=`sha256sum -b $1 | cut -d' ' -f1`
+echo $CODE_HASH > code_hash
+hex2bin code_hash $OUTPUT_BIN
+ 
+#Append secure version to output bin
+printf "%02x000000%02x%02x00000000000000000000" $SECURE_VERSION $SECVER_REVOKE_MASK_LOW $SECVER_REVOKE_MASK_HIGH | xxd -r -p > .staging.bin
+cat .staging.bin >> $OUTPUT_BIN
+log_info "Generated Binary for code signature:"
+clean_staging_files
+hexdump -v -C $OUTPUT_BIN

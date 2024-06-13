@@ -1,0 +1,86 @@
+#!/bin/sh
+
+wait_watchdog_timeout_reboot()
+{
+	while :
+	do
+		log "Waiting for watchdog timeout reboot..."
+		sleep 10
+	done
+}
+
+# mount /proc /sys
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+
+
+#挂载ko
+insmod /lib/net/devmem_drv.ko
+insmod /lib/net/ksecurec.ko
+insmod /lib/net/log_drv.ko
+insmod /lib/net/comm_drv.ko
+insmod /lib/net/mdio_drv.ko
+
+insmod /lib/net/msg_scm3_drv.ko
+insmod /lib/net/usb-common.ko
+insmod /lib/net/udc-core.ko
+insmod /lib/net/configfs.ko
+insmod /lib/net/libcomposite.ko
+insmod /lib/net/usb_drv.ko
+insmod /lib/net/dwc3.ko
+insmod /lib/net/hw_lock_drv.ko
+insmod /lib/net/mmc_core.ko
+insmod /lib/net/mmc_block.ko
+insmod /lib/net/emmc_drv.ko
+insmod /lib/net/sdio_drv.ko
+insmod /lib/net/localbus_drv.ko
+
+loop_cnt=0
+while :
+do
+	/sbin/mdev -s
+	if [ $? -ne 0 ]; then
+		log "exec /sbin/mdev -s,fail!"
+	fi
+	
+	log "check gpp0-2 loop_cnt = ${loop_cnt}"
+	if [ -e /dev/mmcblk0gp0 ] && [ -e /dev/mmcblk0gp1 ] && [ -e /dev/mmcblk0gp2 ]; then 
+		break
+	fi
+
+	#M3 check BIOS cost 6s at least, two times reserved. 
+	if [ ${loop_cnt} -ge 20 ]; then
+		wait_watchdog_timeout_reboot
+		break
+	fi
+	let loop_cnt++
+	sleep 0.5
+done
+
+#挂载完将三个分区对应好
+function link_emmc_part_devname()
+{
+        part_id=`cat /proc/device-tree/nvm_part/$1`
+        real_devname="/dev/mmcblk0gp$part_id"
+        echo $real_devname
+        #Remove old link
+        rm -f /dev/nvm_$1
+        ln -s $real_devname /dev/nvm_$1
+}
+
+link_emmc_part_devname active
+link_emmc_part_devname gold
+link_emmc_part_devname temp
+
+#feed wdg and send boot ok to m3
+rmmod devmem_drv
+coremsg bootok
+
+# mount partitions
+umount /dev/nvm_active
+mount -t ext4 /dev/nvm_active /mnt/newroot -o ro
+umount  /sys
+umount  /proc
+exec /sbin/switch_root  /mnt/newroot /sbin/init
+
+

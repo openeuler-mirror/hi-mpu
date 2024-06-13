@@ -1,0 +1,10 @@
+#!/bin/sh
+
+PWD=`pwd`
+source $PWD/common
+
+#$1: filename
+#$2: offset
+#$3: len
+#$4: value
+bin_mod $1 $2 $3 $4

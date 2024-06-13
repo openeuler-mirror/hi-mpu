@@ -1,0 +1,13 @@
+1.前提条件
+   1)ko编译成功(包含sdio的ko)
+   2)将openEuler编译生成的*.cpio.gz uImage放到上层build/output目录下
+2.生成文件
+   1)执行脚本 build_hi3093_ext4.sh
+   2)生成的文件为上层build/output目录下的hi3093_ext4.tar.gz
+3.升级方法
+   1)将hi3093_ext4.tar.gz解压后得到Hi3093_ext4fs.img、Hi3093_ext4fs_cms.bin
+   2)将Hi3093_ext4fs.img、Hi3093_ext4fs_cms.bin上传到板端的/tmp目录
+   3)板端/tmp目录下执行：sh /hi3093_upgrade.sh 4096
+   4)执行成功后 reboot重启单板
+4.加载网络ko
+   1)升级完成后执行 sh /hi3093_init.sh 加载网络ko

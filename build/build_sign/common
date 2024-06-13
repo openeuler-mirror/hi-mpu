@@ -1,0 +1,221 @@
+#!/bin/sh
+
+#
+# output log
+# $1: log level - 0: alert 1: error 2: warning 3: info
+# $2: log message
+#
+function log()
+{
+	case $1 in
+		"0")
+		echo  [ALERT]:$2
+		;;
+		"1")
+		echo  [ERROR]:$2
+		;;
+		"2")
+		echo  [WARNING]:$2
+		;;
+		"3")
+		echo  [INFO]:$2
+		;;
+		*)
+		;;
+	esac
+}
+
+function log_alert()
+{
+	log 0 "$1"
+}
+
+function log_error()
+{
+	log 1 "$1"
+}
+
+function log_warn()
+{
+	log 2 "$1"
+}
+
+function log_info()
+{
+	log 3 "$1"
+}
+
+function is_file_exist()
+{
+	if [ ! -e $1 ]
+	then
+		echo "File $1 does not exist!"
+		return 0
+	else
+		return 1
+	fi
+}
+
+function clean_staging_files()
+{
+	rm -f .staging*
+}
+#
+# ASCII Code(Hex) To Binary
+# $1: input file (hex ascii code)
+#     File format: 
+#     ab bb cc dd ef 
+# $2: output file (Binary)
+#
+function hex2bin()
+{
+	if [ ! -e $1 ]
+	then
+		log_error "hex2bin: file $1 does not exist!"
+		exit 1		
+	fi
+
+	xxd -r -p $1 > $2 
+}
+
+#
+# Binary to ASCII Code(Hex) 
+# $1: input file (Binary)
+# $2: output file (Hex ascii code)
+#     File format: 
+#     ab bb cc dd ef 
+#
+function bin2hex()
+{
+	if [ ! -e $1 ]
+	then
+		log_error "bin2hex: file $1 does not exist!"
+		exit 1		
+	fi
+
+	#hexdump -v -e '8/1 "%02X"' -e '"\n"' $1 > $2	
+	hexdump -v -e '8/1 "%02X"' $1 > $2	
+}
+
+#
+# Modify Binary file
+# $1 filename
+# $2 modify offset[byte(s)]
+# $3 modify len[byte(s)]
+# $4 modify value(hex string byte array)
+#
+function bin_mod()
+{
+	if [ "$#" != "4" ]
+	then
+		log_error "bin_mod: Need more arguments!"
+		exit 1
+	fi
+	
+	is_file_exist $1
+	if [ "$?" != "1" ]
+	then
+		log_error "Invalid argument!"
+		exit 1
+	fi
+
+	file=$1
+	offset=$2
+	len=$3
+	data=$4
+	cut_offset=`expr $offset + $len`
+	filesize=`stat -c %s $file`
+	echo "File size: $filesize"
+
+	echo $4 > .staging_hex
+	hex2bin .staging_hex .staging_bin
+	#Save original file
+	cp $file .staging_save
+	dd if=.staging_bin of=$file bs=1 seek=$offset count=$len
+
+	if [ $cut_offset -ge $filesize ]
+	then
+		#Modify the end of the file, no need to cut original file and merge
+		return
+	fi
+	#Cut staging_save to the rest of the input file
+	dd if=.staging_save of=.staging_cut bs=1 skip=$cut_offset
+	#Merge file and staging_cut
+	cat .staging_cut >> $file
+	clean_staging_files
+}
+
+#
+# is_file_content_same cheks if the contents of 2 files are the same
+# $1: file1 $2: file2
+# 
+function is_file_content_same()
+{
+	DIFF=`diff $1 $2`
+	
+	echo -n "File $1 and $2 "
+	if [ "$DIFF" != "" ]
+	then
+		echo "are different!" 
+		echo $DIFF
+		return 0
+	else
+		echo "are the same."
+		return 1
+	fi
+}
+
+function is_command_exist()
+{
+	TOOL_EXIST=`which $1`
+	if [ "$TOOL_EXIST" == "" ]
+	then
+		log_error "Command $1 not found!"
+		exit -1
+	fi
+}
+
+#
+# check_sys_tools checks if commands used in related scripts are available on system
+#
+function check_sys_tools()
+{
+	is_command_exist stat
+	is_command_exist dd
+	is_command_exist cut
+	is_command_exist diff
+	is_command_exist hexdump
+	is_command_exist xxd
+}
+
+#
+# U32 VALUE to little endian hex string(little endian byte array)
+# $1 - word value string
+# 
+function u32_to_hex_byte_array()
+{
+	# Convert u32 value to string format xx:xx:xx:xx
+	# e.g: u32 value = 123(decimal)
+	#      converted string = 00:00:00:7b
+	val=`printf "%08x" $1 | cut -c 1-2,3-4,5-6,7-8 --output-delimiter=':'`
+	# Convert to little endian byte array
+	byte0=`echo $val | cut -d':' -f4`
+	byte1=`echo $val | cut -d':' -f3`
+	byte2=`echo $val | cut -d':' -f2`
+	byte3=`echo $val | cut -d':' -f1`
+	echo $byte0$byte1$byte2$byte3
+}
+
+#$1 filename
+#$2 pad_len
+function extend_file_with_zero()
+{
+	file_len=`stat -c %s $1`
+	echo "extend_file_with_zeor: $1 file_len $file_len pad_len $2"
+	dd if=/dev/zero of=$1 seek=$file_len bs=1 count=$2	
+	if [ "$?" != "0" ]
+	then
+		log_error "extend_file_with_zero error!"
+		exit -1
+	fi
+}

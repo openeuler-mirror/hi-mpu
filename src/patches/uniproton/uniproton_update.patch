@@ -1,0 +1,644 @@
+diff -uparN UniProton-v1.0.1-source/build.py UniProton-v1.0.1/build.py
+--- UniProton-v1.0.1-source/build.py	2023-11-27 12:38:34.347613505 +0800
++++ UniProton-v1.0.1/build.py	2023-11-27 12:51:16.895603352 +0800
+@@ -18,6 +18,7 @@ import globle
+ from logs import BuilderNolog, log_msg
+ from get_config_info import *
+ 
++directory_path =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ 
+ class Compile:
+ 
+@@ -25,6 +26,7 @@ class Compile:
+     def get_config(self, cpu_type, cpu_plat):
+         self.compile_mode = get_compile_mode()
+         self.lib_type, self.plam_type, self.hcc_path, self.kconf_dir, self.system, self.core = get_cpu_info(cpu_type, cpu_plat, self.build_machine_platform)
++        self.hcc_path = directory_path + '/'+  self.hcc_path
+         if not self.compile_mode and self.lib_type and self.plam_type and self.hcc_path and self.kconf_dir:
+             log_msg('error', 'load config.xml env error')
+             sys.exit(0)
+@@ -71,6 +73,7 @@ class Compile:
+     #获取编译环境是arm64还是x86，用户不感知，并将其写入环境变量。
+     def getOsPlatform(self):
+         self.cmake_env_path = get_tool_info('cmake', 'tool_path')
++        self.cmake_env_path = directory_path + '/' + self.cmake_env_path
+ 
+         if platform.uname()[-1] == 'aarch64':
+             self.build_machine_platform = 'arm64'
+diff -uparN UniProton-v1.0.1-source/config.xml UniProton-v1.0.1/config.xml
+--- UniProton-v1.0.1-source/config.xml	2023-11-27 12:38:34.347613505 +0800
++++ UniProton-v1.0.1/config.xml	2023-11-27 12:51:16.895603352 +0800
+@@ -4,7 +4,7 @@
+     <UniProton_compile_mode>release</UniProton_compile_mode>
+     <tools>
+         <tool tool_name="cmake">
+-            <tool_path>/opt/buildtools/cmake-3.20.5/bin</tool_path>
++            <tool_path>cmake-3.20.5/bin</tool_path>
+         </tool>
+     </tools>
+     <projects>
+@@ -12,8 +12,8 @@
+             <lib_type>SRE</lib_type>
+             <platform plat_name="cortex">
+                 <name>cortex</name>
+-                <compile_path_x86>/opt/buildtools/gcc-arm-none-eabi-10-2020-q4-major/bin</compile_path_x86>
+-                <compile_path_arm64>/opt/buildtools/gcc-arm-none-eabi-10-2020-q4-major/bin</compile_path_arm64>
++                <compile_path_x86>gcc-arm-none-eabi-10-2020-q4-major/bin</compile_path_x86>
++                <compile_path_arm64>gcc-arm-none-eabi-10-2020-q4-major/bin</compile_path_arm64>
+                 <kconf_dir>m4</kconf_dir>
+             </platform>
+         </project>
+@@ -23,8 +23,8 @@
+             <lib_type>SRE</lib_type>
+             <platform plat_name="armv8">
+                 <name>armv8</name>
+-                <compile_path_x86>/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_x86>
+-                <compile_path_arm64>/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_arm64>
++                <compile_path_x86>gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_x86>
++                <compile_path_arm64>gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_arm64>
+                 <kconf_dir>armv8_raspi4</kconf_dir>
+             </platform>
+         </project>
+@@ -34,8 +34,8 @@
+             <lib_type>SRE</lib_type>
+             <platform plat_name="armv8">
+                 <name>armv8</name>
+-                <compile_path_x86>/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_x86>
+-                <compile_path_arm64>/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_arm64>
++                <compile_path_x86>gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_x86>
++                <compile_path_arm64>gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin</compile_path_arm64>
+                 <kconf_dir>armv8_hi3093</kconf_dir>
+             </platform>
+         </project>
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/apps/openamp/main.c UniProton-v1.0.1/demos/hi3093/apps/openamp/main.c
+--- UniProton-v1.0.1-source/demos/hi3093/apps/openamp/main.c	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/apps/openamp/main.c	2023-11-27 12:51:16.895603352 +0800
+@@ -7,8 +7,14 @@
+ #include "prt_config_internal.h"
+ #include "prt_task.h"
+ #include "test.h"
++#include "openamp_common.h"
+ 
+ TskHandle g_testTskHandle;
++#if defined(__DRIVER__)
++TskHandle g_sampleHandle;
++#endif
++static TskHandle g_testTskHandleCpuOff = -1;
++SemHandle g_semHanderCpuOff = -1;
+ U8 g_memRegion00[OS_MEM_FSC_PT_SIZE];
+ 
+ extern U32 PRT_PrintfInit();
+@@ -22,7 +28,7 @@ int TestOpenamp()
+     if (ret) {
+         return ret;
+     }
+-    
++
+     return OS_OK;
+ }
+ #endif
+@@ -34,27 +40,83 @@ void TestTaskEntry()
+ #endif
+ }
+ 
++#if defined(__DRIVER__)
++void DriverSampleEntry()
++{
++    extern int app_main(void);
++    app_main();
++}
++#endif
++
++static void InitTaskEntryCpuOff(void)
++{
++    PRT_SemPend(g_semHanderCpuOff, OS_WAIT_FOREVER);
++    openamp_deinit();
++    unsigned long a0 = 0x84000002;
++    asm volatile("mov x0, %0"::"r"(a0));
++    asm volatile("smc #0");
++}
++
+ U32 OsTestInit(void)
+ {
+     U32 ret;
++    ret = PRT_SemCreate(SINGLERCOUNT, &g_semHanderCpuOff);
++    if (ret) {
++        return ret;
++    }
++
+     U8 ptNo = OS_MEM_DEFAULT_FSC_PT;
+     struct TskInitParam param = {0};
+-    
++
+     param.stackAddr = (U32)PRT_MemAllocAlign(0, ptNo, 0x2000, MEM_ADDR_ALIGN_016);
+     param.taskEntry = (TskEntryFunc)TestTaskEntry;
+     param.taskPrio = 25;
+     param.name = "TestTask";
+     param.stackSize = 0x2000;
+-    
++
+     ret = PRT_TaskCreate(&g_testTskHandle, &param);
+     if (ret) {
++        PRT_SemDelete(g_semHanderCpuOff);
++        return ret;
++    }
++
++    struct TskInitParam param_cpu_off = {InitTaskEntryCpuOff, 2, 0, {0}, 0x1000, "InitTaskCpuOff", 0, 0};
++    param_cpu_off.args[0] = g_semHanderCpuOff;
++
++    ret = PRT_TaskCreate(&g_testTskHandleCpuOff, &param_cpu_off);
++    if (ret) {
++        PRT_SemDelete(g_semHanderCpuOff);
+         return ret;
+     }
+-    
++
+     ret = PRT_TaskResume(g_testTskHandle);
+     if (ret) {
+         return ret;
+     }
++
++#if defined(__DRIVER__)
++    struct TskInitParam sample_param = {0};
++    sample_param.taskEntry = (TskEntryFunc)DriverSampleEntry;
++    sample_param.taskPrio = 26;
++    sample_param.name = "SampleTask";
++    sample_param.stackSize = 0x2000;
++    sample_param.stackAddr = 0;
++
++    ret = PRT_TaskCreate(&g_sampleHandle, &sample_param);
++    if (ret) {
++        PRT_SemDelete(g_semHanderCpuOff);
++        return ret;
++    }
++    ret = PRT_TaskResume(g_sampleHandle);
++    if (ret) {
++        return ret;
++    }
++#endif
++
++    ret = PRT_TaskResume(g_testTskHandleCpuOff);
++    if (ret) {
++        return ret;
++    }
+ 
+     return OS_OK;
+ }
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/apps/openamp/openamp_common.h UniProton-v1.0.1/demos/hi3093/apps/openamp/openamp_common.h
+--- UniProton-v1.0.1-source/demos/hi3093/apps/openamp/openamp_common.h	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/apps/openamp/openamp_common.h	2023-11-27 12:51:16.895603352 +0800
+@@ -17,6 +17,7 @@
+ 
+ #include "cpu_config.h"
+ #include "test.h"
++#include "prt_sem.h"
+ 
+ #define VDEV_START_ADDR		MMU_OPENAMP_ADDR
+ #define VDEV_SIZE		0x30000
+@@ -45,6 +46,9 @@
+ #define OS_OPENAMP_NOTIFY_HWI_NUM	OS_HWI_IPI_NO_07
+ #define OS_OPENAMP_NOTIFY_HWI_PRIO	0
+ 
++extern SemHandle g_semHanderCpuOff;
++#define SINGLERCOUNT    0
++
+ #define BIT(n)	(1 << (n))
+ 
+ OS_SEC_ALW_INLINE INLINE void sys_write32(uint32_t data, uintptr_t addr)
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/apps/openamp/rpmsg_service.c UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c
+--- UniProton-v1.0.1-source/demos/hi3093/apps/openamp/rpmsg_service.c	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c	2023-11-27 12:51:16.899603352 +0800
+@@ -13,15 +13,21 @@
+  */
+ 
+ #include "rpmsg_backend.h"
++#include "openamp_common.h"
+ 
+ static struct virtio_device vdev;
+ static struct rpmsg_virtio_device rvdev;
+ static struct metal_io_region *io;
+ struct rpmsg_device *g_rdev;
+ struct rpmsg_endpoint g_ept;
++struct rpmsg_endpoint g_ept_shutdown;
+ U32 g_receivedMsg;
+ bool g_openampFlag = false;
+ #define RPMSG_ENDPOINT_NAME "console"
++#define RPMSG_ENDPOINT_SYSTEM "shutdown"
++static char *g_cpu_shutdown = "stop";
++
++struct rpmsg_endpoint *g_rpmsg_dst_ept;
+ 
+ void rpmsg_service_unbind(struct rpmsg_endpoint *ep)
+ {
+@@ -33,11 +39,59 @@ int send_message(unsigned char *message,
+     return rpmsg_send(&g_ept, message, len);
+ }
+ 
+-char *g_s1 = "Hello, UniProton! \r\n";
++U64 counts_sends[2500];
++unsigned int count_send = 0;
++unsigned int flag_uniproton = 2500;
++
++static void write_message_send(unsigned int data_len)
++{
++    U64 start, end;
++    OS_EMBED_ASM("MRS  %0, CNTVCT_EL0" : "=r"(start) : : "memory", "cc");
++    void *buffer_address;
++
++    uint32_t buffer_len;
++    buffer_address = rpmsg_get_tx_payload_buffer(g_rpmsg_dst_ept, &buffer_len, 1);
++    if ((int) buffer_len < data_len) {
++        PRT_Printf("Send more data than the maximum buffer\r\n");
++        return;
++    }
++    memset(buffer_address, 'a', 16);
++    OS_EMBED_ASM("MRS  %0, CNTVCT_EL0" : "=r"(end) : : "memory", "cc");
++
++    int ret = rpmsg_send_nocopy(g_rpmsg_dst_ept, (void *)buffer_address, data_len);
++    if (ret < 0) {
++        PRT_Printf("Failed to send data...\r\n");
++        return;
++    }
++
++    if (count_send < flag_uniproton) {
++        counts_sends[count_send] = end - start;
++    }
++
++    count_send ++;
++    if (count_send == flag_uniproton) {
++        for (int i = 0; i < flag_uniproton; i++) {
++            PRT_Printf("UniProton i = %d, nocopy = %llu\n", i, counts_sends[i]);
++        }
++    }
++
++    return;
++}
++
+ int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv)
+ {
+     g_openampFlag = true;
+-    send_message((void *)g_s1, strlen(g_s1) * sizeof(char));
++    g_rpmsg_dst_ept = ept;
++    write_message_send(16);
++ 
++    return OS_OK;
++}
++
++int rpmsg_endpoint_cb_shutdown(struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv)
++{
++    if (len == strlen(g_cpu_shutdown) && (strcmp(g_cpu_shutdown, (char *)data) == 0)) {
++        PRT_SemPost(g_semHanderCpuOff);
++    }
+ 
+     return OS_OK;
+ }
+@@ -66,6 +120,13 @@ int openamp_init(void)
+         return err;
+     }
+ 
++    err = rpmsg_create_ept(&g_ept_shutdown, g_rdev, RPMSG_ENDPOINT_SYSTEM,
++                           0xE, RPMSG_ADDR_ANY,
++                           rpmsg_endpoint_cb_shutdown, rpmsg_service_unbind);
++    if (err) {
++        return err;
++    }
++
+     return OS_OK;
+ }
+ 
+@@ -75,6 +136,7 @@ void openamp_deinit(void)
+     if (io) {
+         free(io);
+     }
++    
+ }
+ 
+ int rpmsg_service_init(void)
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/apps/openamp/rpmsg_service.c.orig UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c.orig
+--- UniProton-v1.0.1-source/demos/hi3093/apps/openamp/rpmsg_service.c.orig	1970-01-01 08:00:00.000000000 +0800
++++ UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c.orig	2023-11-27 12:51:16.899603352 +0800
+@@ -0,0 +1,114 @@
++/*
++ * Copyright (c) 2022-2022 Huawei Technologies Co., Ltd. All rights reserved.
++ *
++ * UniProton is licensed under Mulan PSL v2.
++ * You can use this software according to the terms and conditions of the Mulan PSL v2.
++ * You may obtain a copy of Mulan PSL v2 at:
++ * 	http://license.coscl.org.cn/MulanPSL2
++ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++ * See the Mulan PSL v2 for more details.
++ * Create: 2022-12-05
++ * Description: openamp configuration
++ */
++
++#include "rpmsg_backend.h"
++#include "openamp_common.h"
++
++static struct virtio_device vdev;
++static struct rpmsg_virtio_device rvdev;
++static struct metal_io_region *io;
++struct rpmsg_device *g_rdev;
++struct rpmsg_endpoint g_ept;
++struct rpmsg_endpoint g_ept_shutdown;
++U32 g_receivedMsg;
++bool g_openampFlag = false;
++#define RPMSG_ENDPOINT_NAME "console"
++#define RPMSG_ENDPOINT_SYSTEM "shutdown"
++static char *g_cpu_shutdown = "stop";
++
++void rpmsg_service_unbind(struct rpmsg_endpoint *ep)
++{
++    rpmsg_destroy_ept(ep);
++}
++
++int send_message(unsigned char *message, int len)
++{
++    return rpmsg_send(&g_ept, message, len);
++}
++
++char *g_s1 = "Hello, UniProton! \r\n";
++int rpmsg_endpoint_cb(struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv)
++{
++    g_openampFlag = true;
++    send_message((void *)g_s1, strlen(g_s1) * sizeof(char));
++
++    return OS_OK;
++}
++
++int rpmsg_endpoint_cb_shutdown(struct rpmsg_endpoint *ept, void *data, size_t len, uint32_t src, void *priv)
++{
++    if (len == strlen(g_cpu_shutdown) && (strcmp(g_cpu_shutdown, (char *)data) == 0)) {
++        PRT_SemPost(g_semHanderCpuOff);
++    }
++
++    return OS_OK;
++}
++
++int openamp_init(void)
++{
++    int32_t err;
++
++    err = rpmsg_backend_init(&io, &vdev);
++    if (err) {
++        return err;
++    }
++
++    err = rpmsg_init_vdev(&rvdev, &vdev, NULL, io, NULL);
++    if (err) {
++        return err;
++    }
++
++    g_rdev = rpmsg_virtio_get_rpmsg_device(&rvdev);
++
++
++    err = rpmsg_create_ept(&g_ept, g_rdev, RPMSG_ENDPOINT_NAME,
++                           0xF, RPMSG_ADDR_ANY,
++                           rpmsg_endpoint_cb, rpmsg_service_unbind);
++    if (err) {
++        return err;
++    }
++
++    err = rpmsg_create_ept(&g_ept_shutdown, g_rdev, RPMSG_ENDPOINT_SYSTEM,
++                           0xE, RPMSG_ADDR_ANY,
++                           rpmsg_endpoint_cb_shutdown, rpmsg_service_unbind);
++    if (err) {
++        return err;
++    }
++
++    return OS_OK;
++}
++
++void openamp_deinit(void)
++{
++    rpmsg_deinit_vdev(&rvdev);
++    if (io) {
++        free(io);
++    }
++    
++}
++
++int rpmsg_service_init(void)
++{
++    int32_t err;
++    err = openamp_init();
++    if (err) {
++        return err;
++    }
++	
++    send_message((void *)&g_receivedMsg, sizeof(U32));
++	
++    while (!g_openampFlag);
++		
++    return OS_OK;
++}
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/bsp/mmu.c UniProton-v1.0.1/demos/hi3093/bsp/mmu.c
+--- UniProton-v1.0.1-source/demos/hi3093/bsp/mmu.c	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/bsp/mmu.c	2023-11-27 12:51:16.899603352 +0800
+@@ -17,7 +17,7 @@ static mmu_mmap_region_s g_mem_map_info[
+         .phys      = MMU_OPENAMP_ADDR,
+         .size      = 0x30000,
+         .max_level = 0x2,
+-        .attrs     = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
++        .attrs     = MMU_ATTR_UNCACHE_UNSHARE | MMU_ACCESS_RW,
+     }, {
+         .virt      = MMU_IMAGE_ADDR,
+         .phys      = MMU_IMAGE_ADDR,
+@@ -30,13 +30,28 @@ static mmu_mmap_region_s g_mem_map_info[
+         .size      = 0x1000000,
+         .max_level = 0x2,
+         .attrs     = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
+-    }, {    
++    }, {
+         .virt      = MMU_UART_ADDR,
+         .phys      = MMU_UART_ADDR,
+         .size      = 0x2000,
+         .max_level = 0x2,
+         .attrs     = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
+     }
++#if defined(__DRIVER__)
++    , {
++        .virt  = 0x0c000000,
++        .phys  = 0x0c000000,
++        .size  = 0x00ffffff,
++        .max_level = 0x2,
++        .attrs = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
++    }, {
++        .virt  = 0x08600000,
++        .phys  = 0x08600000,
++        .size  = 0x17FFFF,
++        .max_level = 0x2,
++        .attrs = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
++    }
++#endif
+ };
+ 
+ static mmu_ctrl_s g_mmu_ctrl = { 0 };
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/bsp/uart/serial.c UniProton-v1.0.1/demos/hi3093/bsp/uart/serial.c
+--- UniProton-v1.0.1-source/demos/hi3093/bsp/uart/serial.c	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/bsp/uart/serial.c	2023-11-27 12:51:16.899603352 +0800
+@@ -7,6 +7,11 @@ serial_t g_sys_serial;
+ #define UART_CLK    (PERI_APB_FREQ)
+ #define EAGAIN      11
+ 
++#define UART4_CONFIG_REUSE_ADDR1 0x0874507c
++#define UART4_CONFIG_REUSE_ADDR2 0x08745080
++
++#define UART_REG_WRITE(value, addr)  (*(volatile U32 *)((uintptr_t)addr) = (U32)value)
++
+ void serial_soft_init(serial_cfg *cfg, uart_ops *hw_ops)
+ {
+     if (!cfg || !hw_ops) {
+@@ -31,6 +36,9 @@ void serial_soft_init(serial_cfg *cfg, u
+ 
+ void serial_init(serial_cfg *cfg, uart_ops *hw_ops)
+ {
++    /* write IOCFG to 0, and then we can reuse uart4 */
++    UART_REG_WRITE(0x0, UART4_CONFIG_REUSE_ADDR1);
++    UART_REG_WRITE(0x0, UART4_CONFIG_REUSE_ADDR2);
+     if (!cfg || !hw_ops) {
+         return;
+     }
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/build/build_app.sh UniProton-v1.0.1/demos/hi3093/build/build_app.sh
+--- UniProton-v1.0.1-source/demos/hi3093/build/build_app.sh	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/build/build_app.sh	2023-11-27 12:51:16.899603352 +0800
+@@ -1,11 +1,13 @@
+-export TOOLCHAIN_PATH=/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf
++BUILD_DIR=$(pwd)/../../../..
++
++export TOOLCHAIN_PATH=${BUILD_DIR}/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf
+ export APP=hi3093
+ export TMP_DIR=$APP
+ 
+ sh ./build_static.sh $APP
+ sh ./build_openamp.sh
+ 
+-cmake -S .. -B $TMP_DIR -DAPP:STRING=$APP -DTOOLCHAIN_PATH:STRING=$TOOLCHAIN_PATH
++cmake -S .. -B $TMP_DIR -DAPP:STRING=$APP -DTOOLCHAIN_PATH:STRING=$TOOLCHAIN_PATH -DCMAKE_C_COMPILER_ARG1=""
+ pushd $TMP_DIR
+ make $APP
+ popd
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/build/build_openamp.sh UniProton-v1.0.1/demos/hi3093/build/build_openamp.sh
+--- UniProton-v1.0.1-source/demos/hi3093/build/build_openamp.sh	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/build/build_openamp.sh	2023-11-27 12:51:16.899603352 +0800
+@@ -1,11 +1,13 @@
++BUILD_DIR=$(pwd)/../../../..
++CMAKE_CROSS_COMPILE=${BUILD_DIR}/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin/aarch64-none-elf-gcc
++
+ echo "################# git clone libmetal #################"
+ pushd ../component
+ rm -rf ./libmetal*
+-git clone https://gitee.com/src-openeuler/libmetal.git
+-mv ./libmetal/libmetal-2022.10.0.tar.gz .
+-rm -rf ./libmetal
+-tar -zxvf libmetal-2022.10.0.tar.gz
++wget https://github.com/OpenAMP/libmetal/archive/refs/tags/v2022.10.0.tar.gz --no-check-certificate
++tar -zxvf v2022.10.0.tar.gz
+ mv ./libmetal-2022.10.0 ./libmetal
++rm v2022.10.0.tar.gz
+ cp UniProton-patch-for-libmetal.patch ./libmetal
+ cd libmetal
+ patch -p1 -d . < UniProton-patch-for-libmetal.patch
+@@ -14,14 +16,16 @@ popd
+ echo "################# git clone openamp #################"
+ pushd ../component
+ rm -rf ./open-amp*
+-git clone https://gitee.com/src-openeuler/OpenAMP.git
+-mv ./OpenAMP/openamp-2022.10.1.tar.gz .
+-rm -rf ./OpenAMP
+-tar -zxvf openamp-2022.10.1.tar.gz
+-mv ./openamp-2022.10.1 ./open-amp
++wget https://github.com/OpenAMP/open-amp/archive/refs/tags/v2022.10.1.tar.gz --no-check-certificate
++tar -zxvf v2022.10.1.tar.gz
++mv ./open-amp-2022.10.1 ./open-amp
++rm -rf v2022.10.1.tar.gz
+ cp UniProton-patch-for-openamp.patch ./open-amp
+ cd open-amp
+ patch -p1 -d . < UniProton-patch-for-openamp.patch
++cd ${BUILD_DIR}/UniProton-v1.0.1
++patch -p1 < ${BUILD_DIR}/../../patches/uniproton/uniproton_patch_for_update.patch
++cd ${BUILD_DIR}/UniProton-v1.0.1/demos/hi3093/component/open-amp
+ popd
+ 
+ echo "######################### build metal #########################"
+@@ -31,7 +35,7 @@ cd libmetal
+ mkdir -p build
+ cd build
+ rm -rf *
+-cmake ../../../component/libmetal -DCMAKE_TOOLCHAIN_FILE=../../../component/libmetal/cmake/platforms/uniproton_arm64_gcc.cmake -DWITH_DOC=OFF -DWITH_EXAMPLES=OFF -DWITH_TESTS=OFF -DWITH_DEFAULT_LOGGER=OFF -DWITH_SHARED_LIB=OFF
++cmake ../../../component/libmetal -DCMAKE_C_COMPILER=${CMAKE_CROSS_COMPILE} -DCMAKE_TOOLCHAIN_FILE=../../../component/libmetal/cmake/platforms/uniproton_arm64_gcc.cmake -DWITH_DOC=OFF -DWITH_EXAMPLES=OFF -DWITH_TESTS=OFF -DWITH_DEFAULT_LOGGER=OFF -DWITH_SHARED_LIB=OFF
+ make VERBOSE=1 DESTDIR=../output install
+ if [ $? -ne 0 ];then
+ 	echo "make metal failed!"
+@@ -46,7 +50,7 @@ cd open-amp
+ mkdir -p build
+ cd build
+ rm -rf *
+-cmake ../../../component/open-amp -DCMAKE_TOOLCHAIN_FILE=../../../component/open-amp/cmake/platforms/uniproton_arm64_gcc.cmake
++cmake ../../../component/open-amp -DCMAKE_C_COMPILER=${CMAKE_CROSS_COMPILE} -DCMAKE_TOOLCHAIN_FILE=../../../component/open-amp/cmake/platforms/uniproton_arm64_gcc.cmake
+ make VERBOSE=1 DESTDIR=../output install
+ if [ $? -ne 0 ];then
+         echo "make openamp failed!"
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/build/build_static.sh UniProton-v1.0.1/demos/hi3093/build/build_static.sh
+--- UniProton-v1.0.1-source/demos/hi3093/build/build_static.sh	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/build/build_static.sh	2023-11-27 12:51:16.899603352 +0800
+@@ -1,4 +1,7 @@
+-git clone https://gitee.com/openeuler/libboundscheck.git
++wget https://gitee.com/openeuler/libboundscheck/repository/archive/master.zip --no-check-certificate
++unzip master.zip
++mv ./libboundscheck-master ./libboundscheck
++rm -rf master.zip
+ 
+ cp libboundscheck/include/* ../../../platform/libboundscheck/include
+ cp libboundscheck/include/* ../include
+@@ -6,7 +9,7 @@ cp libboundscheck/src/* ../../../platfor
+ rm -rf libboundscheck
+ 
+ pushd ./../../../
+-python build.py $1
++python3 build.py $1
+ cp output/UniProton/lib/$1/* demos/$1/libs
+ cp output/libboundscheck/lib/$1/* demos/$1/libs
+ cp -r src/include/uapi/* demos/$1/include
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/component/UniProton-patch-for-libmetal.patch UniProton-v1.0.1/demos/hi3093/component/UniProton-patch-for-libmetal.patch
+--- UniProton-v1.0.1-source/demos/hi3093/component/UniProton-patch-for-libmetal.patch	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/component/UniProton-patch-for-libmetal.patch	2023-11-27 12:51:16.899603352 +0800
+@@ -1,7 +1,7 @@
+ diff -uparN libmetal-2022.10.0/cmake/platforms/uniproton_arm64_gcc.cmake libmetal/cmake/platforms/uniproton_arm64_gcc.cmake
+ --- libmetal-2022.10.0/cmake/platforms/uniproton_arm64_gcc.cmake	1970-01-01 08:00:00.000000000 +0800
+ +++ libmetal/cmake/platforms/uniproton_arm64_gcc.cmake	2023-02-22 11:01:30.000000000 +0800
+-@@ -0,0 +1,16 @@
++@@ -0,0 +1,14 @@
+ +#cross-compilation config
+ +
+ +set(CMAKE_SYSTEM_PROCESSOR arm)
+@@ -10,8 +10,6 @@ diff -uparN libmetal-2022.10.0/cmake/pla
+ +set(CMAKE_C_COMPILER_WORKS 1)
+ +set(CMAKE_CXX_COMPILER_WORKS 1)
+ +
+-+set(CROSS_PREFIX "/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin/aarch64-none-elf-" CACHE STRING "")
+-+set(CMAKE_C_COMPILER	"${CROSS_PREFIX}gcc" CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER CACHE STRING "")
+diff -uparN UniProton-v1.0.1-source/demos/hi3093/component/UniProton-patch-for-openamp.patch UniProton-v1.0.1/demos/hi3093/component/UniProton-patch-for-openamp.patch
+--- UniProton-v1.0.1-source/demos/hi3093/component/UniProton-patch-for-openamp.patch	2023-11-27 12:38:34.351613505 +0800
++++ UniProton-v1.0.1/demos/hi3093/component/UniProton-patch-for-openamp.patch	2023-11-27 12:51:16.899603352 +0800
+@@ -11,7 +11,7 @@ diff -uparN open-amp-2022.10.1/cmake/dep
+ diff -uparN open-amp-2022.10.1/cmake/platforms/uniproton_arm64_gcc.cmake open-amp/cmake/platforms/uniproton_arm64_gcc.cmake
+ --- open-amp-2022.10.1/cmake/platforms/uniproton_arm64_gcc.cmake	1970-01-01 08:00:00.000000000 +0800
+ +++ open-amp/cmake/platforms/uniproton_arm64_gcc.cmake	2023-02-20 14:24:50.000000000 +0800
+-@@ -0,0 +1,14 @@
++@@ -0,0 +1,12 @@
+ +#cross-compilation config
+ +
+ +set(CMAKE_SYSTEM_PROCESSOR arm)
+@@ -20,8 +20,6 @@ diff -uparN open-amp-2022.10.1/cmake/pla
+ +set(CMAKE_C_COMPILER_WORKS 1)
+ +set(CMAKE_CXX_COMPILER_WORKS 1)
+ +
+-+set(CROSS_PREFIX "/opt/buildtools/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin/aarch64-none-elf-" CACHE STRING "")
+-+set(CMAKE_C_COMPILER "${CROSS_PREFIX}gcc" CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER CACHE STRING "")
+ +set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER CACHE STRING "")

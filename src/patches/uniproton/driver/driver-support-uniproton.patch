@@ -1,0 +1,97 @@
+ .../demos/hi3093/CMakeLists.txt (mode +x)          |  3 ++-
+ .../demos/hi3093/apps/openamp/main.c (mode +x)     | 24 ++++++++++++++++++++++
+ .../demos/hi3093/bsp/mmu.c (mode +x)               | 13 ++++++++++++
+ 3 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/UniProton-v1.0.1/demos/hi3093/CMakeLists.txt b/U1/demos/hi3093/CMakeLists.txt
+old mode 100644
+new mode 100755
+index e2e9fa3..cb93645
+--- a/UniProton-v1.0.1/demos/hi3093/CMakeLists.txt
++++ b/U1/demos/hi3093/CMakeLists.txt
+@@ -39,6 +39,7 @@ link_libraries(
+ add_subdirectory(bsp)
+ add_subdirectory(config)
+ add_subdirectory(apps)
++add_subdirectory(drivers)
+ 
+-list(APPEND OBJS $<TARGET_OBJECTS:rpmsg> $<TARGET_OBJECTS:bsp> $<TARGET_OBJECTS:config> $<TARGET_OBJECTS:uart>)
++list(APPEND OBJS $<TARGET_OBJECTS:rpmsg> $<TARGET_OBJECTS:bsp> $<TARGET_OBJECTS:config> $<TARGET_OBJECTS:uart> $<TARGET_OBJECTS:drivers>)
+ add_executable(${APP} ${OBJS})
+diff --git a/UniProton-v1.0.1/demos/hi3093/apps/openamp/main.c b/U1/demos/hi3093/apps/openamp/main.c
+old mode 100644
+new mode 100755
+index a52d78b..ac5d584
+--- a/UniProton-v1.0.1/demos/hi3093/apps/openamp/main.c
++++ b/U1/demos/hi3093/apps/openamp/main.c
+@@ -9,6 +9,7 @@
+ #include "test.h"
+ 
+ TskHandle g_testTskHandle;
++TskHandle g_sampleHandle;
+ U8 g_memRegion00[OS_MEM_FSC_PT_SIZE];
+ 
+ extern U32 PRT_PrintfInit();
+@@ -34,6 +35,13 @@ void TestTaskEntry()
+ #endif
+ }
+ 
++extern int net_sample_entry(void);
++void DriverSampleEntry()
++{
++
++    net_sample_entry();
++
++}
+ U32 OsTestInit(void)
+ {
+     U32 ret;
+@@ -56,6 +64,22 @@ U32 OsTestInit(void)
+         return ret;
+     }
+ 
++    struct TskInitParam sample_param = {0};
++    sample_param.taskEntry = (TskEntryFunc)DriverSampleEntry;
++    sample_param.taskPrio = 26;
++    sample_param.name = "SampleTask";
++    sample_param.stackSize = 0x2000;
++    sample_param.stackAddr = 0;
++
++    ret = PRT_TaskCreate(&g_sampleHandle, &sample_param);
++    if (ret) {
++        return ret;
++    }
++    ret = PRT_TaskResume(g_sampleHandle);
++    if (ret) {
++        return ret;
++    }
++
+     return OS_OK;
+ }
+ 
+diff --git a/UniProton-v1.0.1/demos/hi3093/bsp/mmu.c b/U1/demos/hi3093/bsp/mmu.c
+old mode 100644
+new mode 100755
+index e303e27..439f443
+--- a/UniProton-v1.0.1/demos/hi3093/bsp/mmu.c
++++ b/U1/demos/hi3093/bsp/mmu.c
+@@ -37,6 +37,19 @@ static mmu_mmap_region_s g_mem_map_info[] = {
+         .max_level = 0x2,
+         .attrs     = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
+     }
++    , {
++        .virt  = 0x0c000000,
++        .phys  = 0x0c000000,
++        .size  = 0x00ffffff,
++        .max_level = 0x2,
++        .attrs = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
++    }, {
++        .virt  = 0x08600000,
++        .phys  = 0x08600000,
++        .size  = 0x17FFFF,
++        .max_level = 0x2,
++        .attrs = MMU_ATTR_DEVICE_NGNRNE | MMU_ACCESS_RWX,
++    }
+ };
+ 
+ static mmu_ctrl_s g_mmu_ctrl = { 0 };

@@ -1,0 +1,15 @@
+diff --git a/Makefile b/Makefile
+index 3ebf74787e93..6fe3f458183c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -851,8 +851,8 @@ endif
+ 
+ endif # CONFIG_DEBUG_INFO
+ 
+-KBUILD_CFLAGS += $(DEBUG_CFLAGS)
+-export DEBUG_CFLAGS
++#KBUILD_CFLAGS += $(DEBUG_CFLAGS)
++#export DEBUG_CFLAGS
+ 
+ ifdef CONFIG_FUNCTION_TRACER
+ ifdef CONFIG_FTRACE_MCOUNT_RECORD

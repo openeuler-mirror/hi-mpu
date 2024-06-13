@@ -1,0 +1,37 @@
+description: Synopsys Designware GPIO Controller node
+
+compatible: "hisilicon,hi1711-gpio"
+
+include: base.yaml
+
+bus: gpio
+
+properties:
+  interrupts:
+    required: false
+  reg:
+    required: false
+  rising-edge:
+    description: Enables support for rising edge interrupt detection
+    type: boolean
+
+  falling-edge:
+    description: Enables support for falling edge interrupt detection
+    type: boolean
+
+  high-level:
+    description: Enables support for high level interrupt detection
+    type: boolean
+
+  low-level:
+    description: Enables support for low level interrupt detection
+    type: boolean
+    
+  domain:
+    type: array
+    required: true
+  
+
+gpio-cells:
+  - pin
+  - flags

@@ -1,0 +1,13 @@
+description: Synopsys Designware I2C Controller node
+
+include: base.yaml
+
+compatible: "hisilicon,hi1711-i2c"
+
+bus: i2c
+
+properties:
+  domain:
+    type: array
+    required: true
+    description: Provided names of mailbox / IPM channel specifiers
