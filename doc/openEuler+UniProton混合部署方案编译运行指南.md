@@ -122,5 +122,6 @@ insmod mcs_km.ko
 
 ![](./images/openEuler+Uniproton混合部署方案编译运行指南/1719565811567_image.png)
 
-**须知**：下电功能仅支持核间通信mcx。
+**须知**
+下电功能仅支持核间通信mcx
 

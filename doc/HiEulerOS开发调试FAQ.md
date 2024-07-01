@@ -1,6 +1,6 @@
 # HiEulerOS开发调试FAQ
 
-# 1. 驱动添加指导
+## 1. 驱动添加指导
 
 **步骤1** 在`mpu_solution/src/real_time/drivers`目录下新增文件夹，文件夹名为驱动名称（以下以xxx_driver为例）。
 
@@ -19,7 +19,7 @@ obj-y += xxx_driver/
 
 **步骤6** 进入`mpu_solution/build/build_baremetal`目录下，执行./build_baremetal.sh即可。
 
-# 2. 可用外设资源
+## 2. 可用外设资源
 
 本章针对于混合部署系统中驱动提供隔离使用方案指南。
 
@@ -32,7 +32,7 @@ obj-y += xxx_driver/
 #define DT_N_S_SOC_S_GMAC_P_DOMAIN_GMAC2_EXISTS 1
 ```
 
-# 3. I2C、SPI、DMAC使用FAQ
+## 3. I2C、SPI、DMAC使用FAQ
 1. I2C、SPI、DMAC异步接口需要用户注册一个callback。
 
 2. callback需要用户自己实现，callback原型为(以I2C举例)：
@@ -60,14 +60,14 @@ obj-y += xxx_driver/
         - 传输状态值0表示写成功；
         - 传输状态值1表示写失败。
 
-# 4. NET使用FAQ
+## 4. NET使用FAQ
 1. 用户新增网络phy芯片时，需自行适配网络phy驱动。
 
 2. 用户使用网络驱动时，需自行保证网卡mac地址唯一性(在调用bm_net_init接口后，通过bm_net_set_mac_addr接口设置网卡mac地址)。
 
 3. int bm_net_set_mac_addr(bm_eth eth, const unsigned char *mac_addr)*；调用该接口设置mac地址时需要用户保证mac_addr指向的数组大于6个字节。
 
-# 5. IPC性能测试方法
+## 5. IPC性能测试方法
 特别说明：
 1. open_source/mcs/library/rpmsg_endpoint.c中rpmsg_service_receive_loop函数中画红色方框地方建议修改值50，如果单次发送数据量过大，可以改为更大的数值；修改部分如下所示：
     ```
@@ -82,7 +82,7 @@ obj-y += xxx_driver/
 2. 计算方式：ticker = openEuler侧减去baremetal（或者其他实时侧）侧 （重复三次，每次来回2499个数据），单位为tick。时间：ticker* 40 / 1000，单位微秒。
 
 
-## 5.1 Uniproton测试方法
+### 5.1 Uniproton测试方法
 
 **前提条件**：按照[《openEuler+Uniproton混合部署方案编译运行指南》](./openEuler+Uniproton混合部署方案编译运行指南.md)2.2 统一构建镜像章节内容完成制作openEuler+Uniproton镜像。
 
@@ -131,21 +131,21 @@ chmod 755 hi3093.bin
 ./rpmsg_uniproton_ipc -c 3 -t hi3093.bin -a 0x93000000
 ```
 
-# 6. 虚拟串口使用
+## 6. 虚拟串口使用
 在`mpu_solution/src/real_time/libck/include/sre_common.h`中需要修改如下代码：
 ```
 #define CONFIG_VIRTUAL_SERIAL 1
 ```
 
-# 7. 下电资源释放
+## 7. 下电资源释放
 混合部署下电前需要用户自行去实现weak函数mcs_peripherals_shutdown关闭所用资源，如图7-1所示:
 
 ![](./images/HiEulerOS开发调试FAQ/1719565687394_image.png)
 
-# 8. 串口打印
+## 8. 串口打印
 uniproton的打印函数最大支持512字符长度的字符串语句，且默认打开。
 
-# 9. openEuler_tcpdump编译
+## 9. openEuler_tcpdump编译
 **步骤1** 从以下路径下载openEuler-22.03-LTS-SP3交叉编译链到~/hi3093_tool目录。
 
 [https://mirror.truenetwork.ru/openeuler/openEuler-22.03-LTS-SP3/embedded_img/aarch64/qemu-aarch64/openeuler-glibc-x86_64-openeuler-image-aarch64-qemu-aarch64-toolchain-22.03-LTS-SP3.sh](https://mirror.truenetwork.ru/openeuler/openEuler-22.03-LTS-SP3/embedded_img/aarch64/qemu-aarch64/openeuler-glibc-x86_64-openeuler-image-aarch64-qemu-aarch64-toolchain-22.03-LTS-SP3.sh)
@@ -169,7 +169,7 @@ cd mpu_solution/build/build_tools
 
 **须知**：执行机上需先安装pkg-config工具（sudo apt install pkg-config ）
 
-# 10. 实时侧驱动数据传输接口地址保护开关
+## 10. 实时侧驱动数据传输接口地址保护开关
 
 由于网络安全需要，避免驱动数据传输接口被恶意利用导致系统挂死，所有驱动数据传输接口默认会校验输入数据地址，保证源地址和目的地址都在数据传输专用的数据段上xfer_segment，客户应用程序的链接脚本必须显式定义该数据段（如图10-1所示），并在声明待传输数据时加上XFER_DATA字段（如图10-2所示）。
 
@@ -183,9 +183,9 @@ cd mpu_solution/build/build_tools
 
 ![](./images/HiEulerOS开发调试FAQ/1719565701763_image.png)
 
-# 11. uboot控制台读写EMMC和SFC
+## 11. uboot控制台读写EMMC和SFC
 
-## 11.1 sfc读写
+### 11.1 sfc读写
 
 以下使用以Hi3093单板u12为例：
 
@@ -205,7 +205,7 @@ cd mpu_solution/build/build_tools
 
     `sf write addr offset len` 从内存的addr位置开始向flash的offset位置写len个字节
 
-## 11.2 EMMC读写
+### 11.2 EMMC读写
 
 以下使用以usr区为例，block大小为512字节，十六进制需以0x开头输入，否则视为十进制：
 
@@ -217,7 +217,7 @@ cd mpu_solution/build/build_tools
 
     `mmc_switch 0` 切换至eMMC user分区。（0为分区标号,0:user,1-2:boot,3:RPMB,4-7:GPP）
 
-### 11.2.1 低速读写接口
+#### 11.2.1 低速读写接口
 
 1. 读取emmc内容到内存指定地址
 
@@ -227,7 +227,7 @@ cd mpu_solution/build/build_tools
 
     mmc_wr addr offset len 从内存addr位置开始向eMMC的offset编号block开始写len个block。
 
-### 11.2.2 高速读写接口
+#### 11.2.2 高速读写接口
 
 1. 读取emmc内容到内存指定地址
 

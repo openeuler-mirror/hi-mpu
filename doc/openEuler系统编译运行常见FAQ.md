@@ -1,5 +1,3 @@
-# openEuler系统编译运行常见FAQ
-
 ## 1. 构建openEuler文件系统与zImage镜像
 
 ### 1.1 概述
