@@ -8,11 +8,11 @@ eMMC镜像构建描述了生成eMMC镜像升级所需要的Hi3093_ext4fs.img、H
 
 **前提条件：**
 
-1. 编译环境的准备请参考文档[https://yocto-meta-openeuler.pages.openeuler.org/openEuler-22.03-LTS-SP3/yocto/oebuild.html](https://yocto-meta-openeuler.pages.openeuler.org/openEuler-22.03-LTS-SP3/yocto/oebuild.html)
+1. 编译环境的准备请参考文档：[https://embedded.pages.openeuler.org/openEuler-22.03-LTS-SP3/yocto/oebuild.html](https://embedded.pages.openeuler.org/openEuler-22.03-LTS-SP3/yocto/oebuild.html)。
 
 2. 下载依赖代码：
 	- zephyr 的构建包含核心部分和外部 zephyr modules 部分，由于全部代码较大，需要从该链接中 [src-openEuler/zephyr](https://gitee.com/src-openeuler/zephyr)所提到的百度网盘路径下载zephyr_project_v3.2.0.tar.gz。
-    - python3-pykwalify 在 openeuler 社区尚无相应的源码包，需要从上游下载[Download pykwalify-1.8.0.tar.gz](https://pypi.org/project/pykwalify/1.8.0/#files)
+    - python3-pykwalify 在 openeuler 社区尚无相应的源码包，需要从上游下载[Download pykwalify-1.8.0.tar.gz](https://pypi.org/project/pykwalify/1.8.0/#files)。
 
 **编译步骤如下**
 
@@ -61,7 +61,7 @@ bitbake openeuler-image
 - zImage-5.10.0
 
 ## 1.2 制作EMMC镜像
-**步骤1** 下载该库代码至ubuntun
+**步骤1** 下载该库代码至ubuntu。
 
 **步骤2** 将概述中docker容器里面路径`/usr1/openeuler/src/yocto-meta-openeuler/meta-openeuler/recipes-kernel/linux/files/config/arm64`目录下的defconfig-kernel拷贝到`hi-mpu/custom/open_euler`目录下。
 
@@ -72,10 +72,9 @@ bitbake openeuler-image
 cd hi-mpu
 ./build.sh
 ```
+出现编译选项提示后，输入oe或直接按回车（默认编译选项是openEuler）。
 
-出现编译选项提示后，输入oe或直接按回车（默认编译选项是openEuler）
-
-**步骤5** 编译生成的文件在hi-mpu/build/build_hi3093/output目录下
+**步骤5** 编译生成的文件在hi-mpu/build/build_hi3093/output目录下：
 - u-boot_rsa_4096.bin: uboot。
 - Hi3093_ext4fs_cms.bin: 文件系统签名。
 - Hi3093_ext4fs.img: 文件系统，里面包含uImage和设备树。
@@ -97,7 +96,7 @@ cd hi-mpu
 
 #### 1.3.1.1 源码准备
 
-**步骤1** 下载release代码包并解压
+**步骤1** 下载release代码包并解压。
 
 **步骤2** 将概述中docker容器里面路径`/usr1/openeuler/src/yocto-meta-openeuler/meta-openeuler/recipes-kernel/linux/files/config/arm64`目录下的defconfig-kernel拷贝至`mpu_solution/custom/open_euler`目录下。
 
@@ -123,7 +122,7 @@ sh openeuler-glibc-x86_64-openeuler-image-aarch64-qemu-aarch64-toolchain-22.03-L
 
 #### 1.3.2.1 Hi3093 SDK 编译准备
 
-**步骤1** 修改编译脚本权限
+**步骤1** 修改编译脚本权限。
 
 ```
 cd hi-mpu
@@ -148,7 +147,7 @@ source build_prepare.sh
 source build_exports
 ```
 
-**步骤4** 编译内核
+**步骤4** 编译内核：
 
 -	更改内核默认配置
     ```shell
@@ -169,7 +168,7 @@ source build_exports
 
 #### 1.3.2.2 Hi3093 SDK 编译
 
--	执行如下命令编译SDK
+-	执行如下命令编译SDK：
     ```shell
     cd mpu_solution/build/build_sdk/
     ./build_sdk.sh
@@ -184,12 +183,11 @@ source build_exports
     cd mpu_solution/build/build_uboot
     ./build_uboot.sh openeuler
     ```
--	命令执行完成后，在mpu_solution/build/output目录下生成u-boot_rsa_4096.bin文
-件。
+-	命令执行完成后，在mpu_solution/build/output目录下生成u-boot_rsa_4096.bin文件。
 
 ### 1.3.4 制作uImage
 
-描述：用于openEuler的镜像的转换，zImage-5.10.0转换成uImage。步骤如下：
+用于openEuler的镜像的转换，zImage-5.10.0转换成uImage。步骤如下：
 
 **步骤1** 执行 1.3.3 uboot制作 步骤后，将在mpu_solution/custom/open_euler目录生成mkimage可执行文件。
 
@@ -200,27 +198,28 @@ cd mpu_solution/custom/open_euler
 ./mkimage -A arm -O linux -T kernel -C none -a 0x98280000 -e 0x98280040 -n linux-5.10.0 -d zImage-5.10.0 uImage \
 ```
 
-**步骤3** 执行完成后，在`mpu_solution/custom/open_euler`目录下生成uImage文件
+**步骤3** 执行完成后，在`mpu_solution/custom/open_euler`目录下生成uImage文件。
 
 # 2. SFC镜像构建与启动
 
 **步骤1** 构建SFC烧片包前请确保按照源码和编译环境准备准备好编译环境并按照Hi3093 SDK编译准备完成内核编译。
 
-**步骤2** 进入build/build_sfc目录，执行build_sfc.sh脚本，在sfc_output目录中的Hi3093_flash_ext4.bin即为SFC烧片包，此时uboot读取sfc中的内核和文件系统，可用于eMMC空片时启动，此时烧片包为64M
+**步骤2** 进入build/build_sfc目录，执行build_sfc.sh脚本，在sfc_output目录中的Hi3093_flash_ext4.bin即为SFC烧片包，此时uboot读取sfc中的内核和文件系统，可用于eMMC空片时启动，此时烧片包为64M。
 
 <span style="color:#0066cc;">须知</span>
-- 本文档当前仅提供SFC镜像构建方法，SFC烧写流程由用户自己完成。可以通过烧录机烧录，也可以在uboot阶段擦写flash烧录，亦可以在系统起来后通过加载flash驱动的方式重新擦写flash
+
+     本文档当前仅提供SFC镜像构建方法，SFC烧写流程由用户自己完成。可以通过烧录机烧录，也可以在uboot阶段擦写flash烧录，亦可以在系统起来后通过加载flash驱动的方式重新擦写flash。
 
 **步骤3** flash用烧录器烧写好后，将SFC颗粒放入3093单板U12对应位置的底座中，注意颗粒1脚位置，需要将颗粒上标有小圆点的角对准单板上的小圆点，否则会引起SFC短路烧毁。
 
-**步骤4** 检查拨码开关SW1，以on侧为1，记SW1 1~4为1110，即1~3开关拨至on侧，4开关拨至对侧。
+**步骤4** 检查拨码开关SW1，以on侧为1，记SW1 1\~4为1110，即1\~3开关拨至on侧，4开关拨至对侧。
 
-**步骤5** 接通电源，串口接J26，网线接J12，打开电源开关，完成从flash的启动
+**步骤5** 接通电源，串口接J26，网线接J12，打开电源开关，完成从flash的启动。
 
 
 # 3. SFC从emmc非安全启动
 
-**步骤1** 将hi-mpu/build/build_fs/init脚本中80和81行中的nvm_active替换为目标分区(如mmcblk0p1)，参考eMMC镜像构建或其它混合部署方案编译运行指南完成镜像的编译。
+**步骤1** 将`hi-mpu/build/build_fs/init`脚本中80和81行中的nvm_active替换为目标分区（如mmcblk0p1），参考eMMC镜像构建或其它混合部署方案编译运行指南完成镜像的编译。
 
 **步骤2** **如果当前emmc usr区未进行分区**，在uboot串口执行“env default -a”后执行“saveenv”即可设置好加载SFC镜像的环境变量，然后执行“run bootcmd”即可；**如果emmc usr区已完成分区并放好烧片包**，直接进入步骤7。
 
@@ -233,13 +232,13 @@ cd mpu_solution/custom/open_euler
 
 分好区后，执行`mkfs.ext4 -b 4096 /dev/mmcblk0pX`（例：mkfs.ext4 -b 4096 /dev/mmcblk0p1）格式化X分区为ext4文件系统后reboot重启至内核。
 
-**步骤4** 将编译好的烧片包hi3093_ext4.tar.gz传输至板端/tmp目录（可参考eMMC升级eMMC流程步骤3），并完成解压。
+**步骤4** 将编译好的烧片包hi3093_ext4.tar.gz传输至板端/tmp目录（可利用SFTP传输协议或者相关终端软件），并完成解压。
 
 **步骤5** 执行`mkdir /mnt/update`创建镜像挂载目录，执行`mount -t ext4 -o loop /tmp/Hi3093_ext4fs.img /mnt/update/`完成镜像挂载。
 
 **步骤6** 执行`cp -rf /mnt/update/* /run/media/mmcblk0pX`将编译好的镜像中的文件系统拷贝至X分区，并执行`reboot`重启至uboot控制台。
 
-**步骤7** 
+**步骤7** 启动emmc usr区镜像
 -	执行`env delete bootargs`删除bootargs（欧拉和混合部署的bootargs使用dts中存储的）
 -	执行`setenv boot_kernel_media 1`将镜像加载介质切换至emmc usr区（默认为0启动sfc镜像）
 -	执行`setenv part2_user_offset Y`将emmc usr区读取的起始sector设置为想启动的usr分区的起始sector（例:mmcblk0p2起始sector设置为了6324224，这里的Y为(6324224 -144)的十六进制，为0x607f70）

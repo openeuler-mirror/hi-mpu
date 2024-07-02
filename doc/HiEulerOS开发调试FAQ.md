@@ -13,7 +13,9 @@ CFLAGS += -I./
 ```
 
 **步骤4** 修改`mpu_solution/src/real_time/drivers`目录下Makefile，在最后一行新增如下内容。
+```
 obj-y += xxx_driver/
+```
 
 **步骤5** 在`mpu_solution/src/real_time/drivers/include`文件夹下新增bm_xxx_driver.h头文件，该头文件内容为对外暴露的接口及结构体等。
 
@@ -27,12 +29,12 @@ obj-y += xxx_driver/
 
 ![](./images/HiEulerOS开发调试FAQ/1719565541855_image.png)
 
-如若使用GMAC2, 需在头文件中定义，如：
+如若使用GMAC2，需在头文件中定义，如：
 ```
 #define DT_N_S_SOC_S_GMAC_P_DOMAIN_GMAC2_EXISTS 1
 ```
 
-## 3. I2C、SPI、DMAC使用FAQ
+## 3. I2C、SPI、DMAC的使用
 1. I2C、SPI、DMAC异步接口需要用户注册一个callback。
 
 2. callback需要用户自己实现，callback原型为(以I2C举例)：
@@ -60,31 +62,38 @@ obj-y += xxx_driver/
         - 传输状态值0表示写成功；
         - 传输状态值1表示写失败。
 
-## 4. NET使用FAQ
+## 4. NET的使用
 1. 用户新增网络phy芯片时，需自行适配网络phy驱动。
 
-2. 用户使用网络驱动时，需自行保证网卡mac地址唯一性(在调用bm_net_init接口后，通过bm_net_set_mac_addr接口设置网卡mac地址)。
+2. 用户使用网络驱动时，需自行保证网卡mac地址唯一性（在调用bm_net_init接口后，通过bm_net_set_mac_addr接口设置网卡mac地址）。
 
 3. int bm_net_set_mac_addr(bm_eth eth, const unsigned char *mac_addr)*；调用该接口设置mac地址时需要用户保证mac_addr指向的数组大于6个字节。
 
 ## 5. IPC性能测试方法
 特别说明：
 1. open_source/mcs/library/rpmsg_endpoint.c中rpmsg_service_receive_loop函数中画红色方框地方建议修改值50，如果单次发送数据量过大，可以改为更大的数值；修改部分如下所示：
-    ```
-    if (elapsed_time >= 20) {
-        poll_timeout = -1;
-    }
-    ```
-	- 4字节、8字节、16字节：建议数值改为30。
-	- 32字节、64字节、128字节：建议改为60。
-	- 256字节：建议数值改为70。
+
+![](./images/HiEulerOS开发调试FAQ/1719565701888_image.png)
+
+```
+if (elapsed_time >= 20) {
+    poll_timeout = -1;
+}
+```
+- 4字节、8字节、16字节：建议数值改为30。
+- 32字节、64字节、128字节：建议数值改为60。
+- 256字节：建议数值改为70。
     
-2. 计算方式：ticker = openEuler侧减去baremetal（或者其他实时侧）侧 （重复三次，每次来回2499个数据），单位为tick。时间：ticker* 40 / 1000，单位微秒。
+2. 计算方式：
+
+定时器：ticker = openEuler侧ticker减去baremetal侧ticker（或者其他实时侧ticker）,重复三次，每次来回2499个数据，单位为tick。
+
+时间：ticker* 40 / 1000，单位微秒。
 
 
 ### 5.1 Uniproton测试方法
 
-**前提条件**：按照[《openEuler+Uniproton混合部署方案编译运行指南》](./openEuler+Uniproton混合部署方案编译运行指南.md)2.2 统一构建镜像章节内容完成制作openEuler+Uniproton镜像。
+**前提条件**：按照[《openEuler+UniProton混合部署方案编译运行指南》](./openEuler+UniProton混合部署方案编译运行指南.md)2.2 统一构建镜像章节内容完成制作openEuler+Uniproton镜像。
 
 **步骤1** 执行如下命令编译sample程序，生成组件位于build/build_hi3093/output目录下。
 
@@ -108,7 +117,7 @@ source ~/hi3093_tool/toolchain/environment-setup-aarch64-openeuler-linux
     ![](./images/HiEulerOS开发调试FAQ/1719565660575_image.png)
 
 
-2. 同时还需要注释掉`hi-mpu/src/real_time/UniProton/UniProton-v1.0.1/demos/hi3093/build中build_openamp.sh`脚本中如图5-3画红色方框部分。
+2. 同时还需要注释掉`hi-mpu/src/real_time/UniProton/UniProton-v1.0.1/demos/hi3093/build`目录下`build_openamp.sh`脚本中如图5-3画红色方框部分。
 
     图5-3 UniProton 中注释示意图
 
@@ -116,9 +125,9 @@ source ~/hi3093_tool/toolchain/environment-setup-aarch64-openeuler-linux
 
 3. 如果需要修改其他字节测试，按照如下方式修改sample代码：
 
-    - `mpu_solution/src/samples/non_real_time/ipc/common/sample_ipc_common.c中pty_endpoint_cb函数中chars_len`的大小；
+    - `mpu_solution/src/samples/non_real_time/ipc/common/sample_ipc_common.c`文件的`pty_endpoint_cb`函数中chars_len的大小；
 
-    - `mpu_solution/src/real_time/uniproton/UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c中rpmsg_endpoint_cb`函数中data_len参数大小与pty_endpoint_cb中chars_len保持一致。
+    - `mpu_solution/src/real_time/uniproton/UniProton-v1.0.1/demos/hi3093/apps/openamp/rpmsg_service.c`文件的`rpmsg_endpoint_cb`函数中data_len参数大小与pty_endpoint_cb中chars_len保持一致。
     
 **步骤2** 修改rpmsg_libck_ipc与hi3093.bin执行权限。
 ```
@@ -139,6 +148,8 @@ chmod 755 hi3093.bin
 
 ## 7. 下电资源释放
 混合部署下电前需要用户自行去实现weak函数mcs_peripherals_shutdown关闭所用资源，如图7-1所示:
+
+图7-1 mcs_peripherals_shutdown函数
 
 ![](./images/HiEulerOS开发调试FAQ/1719565687394_image.png)
 
@@ -175,11 +186,11 @@ cd mpu_solution/build/build_tools
 
 用户也可以手动关闭此项地址校验：在src/real_time/drivers/include/bm_common.h中将BM_ADDR_PROTECT删除掉。
 
-**图11-1** 链接脚本样例
+**图10-1** 链接脚本样例
 
 ![](./images/HiEulerOS开发调试FAQ/1719565694624_image.png)
 
-**图11-2** XFER_DATA数据声明样例
+**图10-2** XFER_DATA数据声明样例
 
 ![](./images/HiEulerOS开发调试FAQ/1719565701763_image.png)
 
