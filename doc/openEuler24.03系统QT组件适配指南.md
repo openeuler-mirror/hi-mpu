@@ -83,7 +83,7 @@ oebuild generate -p hi3093 -f openeuler-qt -d hi3093-qt
         
         (1) 在`kernel-5.10.0-177.0.0/`目录下通过命令`grep -rnw mousedev --include Makefile`命令在Makefile文件中查找mousedev对应的内核配置宏名称CONFIG_INPUT_MOUSEDEV。
 
-            ![](./images/openEuler24.03系统QT组件适配指南/1719392239032_image.png)
+        ![](./images/openEuler24.03系统QT组件适配指南/1719392239032_image.png)
 
 	    ---
 
@@ -92,19 +92,19 @@ oebuild generate -p hi3093 -f openeuler-qt -d hi3093-qt
         - m为编译，但不会编译至内核中，需手动加载；
         - y为编译到内核中，启动时自动加载。
 
-            ![](./images/openEuler24.03系统QT组件适配指南/1719392264592_image.png)
+        ![](./images/openEuler24.03系统QT组件适配指南/1719392264592_image.png)
 
 	    ---
 
         (3) 进入对应的驱动模块（上图为1，即按键盘 1 键进入），菜单会自动定位至相应选项，按空格切换配置为m（< >对应为n，<m>对应为m，<*>对应为y，如无法切换至m，可切换为y）。切换完成后，save保存退出即可。
 
-            ![](./images/openEuler24.03系统QT组件适配指南/1719392258894_image.png)
+        ![](./images/openEuler24.03系统QT组件适配指南/1719392258894_image.png)
 
     ---
 
     6. 修改完成后，可通过编辑器查看`kernel-5.10.0-177.0.0/.config`文件验证，相应驱动配置是否为打开状态。
 
-  	    ![](./images/openEuler24.03系统QT组件适配指南/1719563853178_image.png)
+    ![](./images/openEuler24.03系统QT组件适配指南/1719563853178_image.png)
 
     ---
 
