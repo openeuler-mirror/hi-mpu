@@ -12,7 +12,7 @@
 
 ## 2.1 快速构建
 
-这部分可以参考[《openEuler系统编译运行指南》](./openEuler系统编译运行指南.md)中的1.1 和 1.2, 唯一需要注意的是，编openEuler+Uniproton版本，在执行1.2小节步骤4中所介绍的 `./build.sh`命令时，需要选择 oe_uniproton。编译生成的文件在`hi-mpu/build/build_hi3093/output`目录下：
+这部分可以参考[《openEuler系统编译运行指南》](./openEuler系统编译运行指南.md)中的 1.1 和 1.2 章节, 唯一需要注意的是，编openEuler+Uniproton版本，在执行1.2小节步骤4中所介绍的 `./build.sh`命令时，需要选择 oe_uniproton。编译生成的文件在`hi-mpu/build/build_hi3093/output`目录下：
 - u-boot_rsa_4096.bin: uboot。
 - Hi3093_ext4fs_cms.bin: 文件系统签名。
 - Hi3093_ext4fs.img: 文件系统，里面包含uImage和设备树。

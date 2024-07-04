@@ -73,27 +73,27 @@ obj-y += xxx_driver/
 特别说明：
 1. open_source/mcs/library/rpmsg_endpoint.c中rpmsg_service_receive_loop函数中画红色方框地方建议修改值50，如果单次发送数据量过大，可以改为更大的数值；修改部分如下所示：
 
-![](./images/HiEulerOS开发调试FAQ/1719565701888_image.png)
+    ![](./images/HiEulerOS开发调试FAQ/1719565701888_image.png)
 
-```
-if (elapsed_time >= 20) {
-    poll_timeout = -1;
-}
-```
-- 4字节、8字节、16字节：建议数值改为30。
-- 32字节、64字节、128字节：建议数值改为60。
-- 256字节：建议数值改为70。
+    ```
+    if (elapsed_time >= 20) {
+        poll_timeout = -1;
+    }
+    ```
+    - 4字节、8字节、16字节：建议数值改为30。
+    - 32字节、64字节、128字节：建议数值改为60。
+    - 256字节：建议数值改为70。
     
 2. 计算方式：
 
-定时器：ticker = openEuler侧ticker减去baremetal侧ticker（或者其他实时侧ticker）,重复三次，每次来回2499个数据，单位为tick。
+    定时器：ticker = openEuler侧ticker减去baremetal侧ticker（或者其他实时侧ticker），重复三次，每次来回2499个数据，单位为tick。
 
-时间：ticker* 40 / 1000，单位微秒。
+    时间：ticker* 40 / 1000，单位微秒。
 
 
 ### 5.1 Uniproton测试方法
 
-**前提条件**：按照[《openEuler+UniProton混合部署方案编译运行指南》](./openEuler+UniProton混合部署方案编译运行指南.md)2.2 统一构建镜像章节内容完成制作openEuler+Uniproton镜像。
+**前提条件**：按照[《openEuler+UniProton混合部署方案编译运行指南》2.2 统一构建镜像](./openEuler+UniProton混合部署方案编译运行指南.md)章节内容完成制作openEuler+Uniproton镜像。
 
 **步骤1** 执行如下命令编译sample程序，生成组件位于build/build_hi3093/output目录下。
 
