@@ -91,9 +91,9 @@ obj-y += xxx_driver/
     时间：ticker* 40 / 1000，单位微秒。
 
 
-### 5.1 Uniproton测试方法
+### 5.1 UniProton测试方法
 
-**前提条件**：按照[《openEuler+UniProton混合部署方案编译运行指南》2.2 统一构建镜像](./openEuler+UniProton混合部署方案编译运行指南.md)章节内容完成制作openEuler+Uniproton镜像。
+**前提条件**：按照[《openEuler+UniProton混合部署方案编译运行指南》2.2 统一构建镜像](./openEuler+UniProton混合部署方案编译运行指南.md)章节内容完成制作openEuler+UniProton镜像。
 
 **步骤1** 执行如下命令编译sample程序，生成组件位于build/build_hi3093/output目录下。
 
@@ -154,7 +154,7 @@ chmod 755 hi3093.bin
 ![](./images/HiEulerOS开发调试FAQ/1719565687394_image.png)
 
 ## 8. 串口打印
-uniproton的打印函数最大支持512字符长度的字符串语句，且默认打开。
+UniProton的打印函数最大支持512字符长度的字符串语句，且默认打开。
 
 ## 9. openEuler_tcpdump编译
 **步骤1** 从以下路径下载openEuler-22.03-LTS-SP3交叉编译链到~/hi3093_tool目录。
