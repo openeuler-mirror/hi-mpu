@@ -33,6 +33,9 @@ function compile_uboot()
         cp $PROJECT_PATH/src/real_time/baremetal/common/hi309x_baremetal.h $UBOOT_INCLUDE_CONFIGS/hi309x_memmap.h
         make hi3093_sfc_baremetal_defconfig
 	elif [ "$1" == "sfc_16M" ]; then
+		set +e
+		patch -R -p1 < $PROJECT_PATH/src/patches/uboot/uboot-mtd-spi.patch
+		set -e
 		make hi3093_sfc_16M_defconfig
 	else
 		make hi3093_sfc_defconfig
