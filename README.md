@@ -32,6 +32,7 @@
 |  |  coremsg|  |coremsg代码目录|
 |  |  dts|  |dts转换工具代码目录|
 |  |  emmc_divide|  |emmc分区工具代码目录|
+| doc |  |  |编译、升级相关文档|
 
 
 # 快速上手

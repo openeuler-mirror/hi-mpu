@@ -221,7 +221,7 @@ cd mpu_solution/custom/open_euler
 
 **步骤1** 将`hi-mpu/build/build_fs/init`脚本中80和81行中的nvm_active替换为目标分区（如mmcblk0p1），参考eMMC镜像构建或其它混合部署方案编译运行指南完成镜像的编译。
 
-**步骤2** **如果当前emmc usr区未进行分区**，在uboot串口执行“env default -a”后执行“saveenv”即可设置好加载SFC镜像的环境变量，然后执行“run bootcmd”即可；**如果emmc usr区已完成分区并放好烧片包**，直接进入步骤7。
+**步骤2** **如果当前emmc usr区未进行分区**，在uboot串口执行“env default -a”后执行“saveenv”即可设置好加载SFC镜像的环境变量，检查拨码开关SW1，以on侧为1，记SW1 1\~4为1110，即1\~3开关拨至on侧，4开关拨至对侧，然后执行“run bootcmd”即可；**如果emmc usr区已完成分区并放好烧片包**，直接进入步骤7。
 
 **步骤3** 输入账号密码后进入系统，执行“fdisk /dev/mmcblk0”进行分区创建，例：
 - 输入“n”进行分区创建，输入“p”选择创建主分区

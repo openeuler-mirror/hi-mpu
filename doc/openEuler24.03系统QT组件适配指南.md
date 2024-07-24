@@ -10,7 +10,7 @@
 
 ### **步骤1**： 依次执行如下命令，初始化oebuild工作目录以及构建分支代码：
 ```
-oebuild init buildwork -b openEuler-24.03-LST
+oebuild init buildwork -b openEuler-24.03-LTS
 cd /home/user/buildwork
 oebuild update
 ```
@@ -18,7 +18,7 @@ oebuild update
 <span style="color:#0066cc;">**须知**</span>
 1. 假设执行路径位于/home/user/，执行后根据提示进入对应目录：执行路径可以根据自己需求修改执行路径。
 2. buildwork：存放目录。
-3. openEuler-24.03-LST为当前支持本构建的源码分支。
+3. openEuler-24.03-LTS为当前支持本构建的源码分支。
 4. 执行oebuild update完成后，将在 /home/user/buildwork/src/ 目录下载好主构建源码，并初始化构建虚拟环境。
 
 ### **步骤2**： 删除qt组件的硬件支持代码（默认没有hi3093）：
@@ -239,7 +239,7 @@ rm -r img_file
 
 <span style="color:#0066cc;">须知</span>
 - 挂载与卸载，以及修改镜像内容时均需要使用到root权限。
-- 如果上述构建过程是使用openEuler22.03-LST-SP3，内核模块驱动文件目录为`lib/modules/5.10.0/kernel/drivers`。
+- 如果上述构建过程是使用openEuler22.03-LTS-SP3，内核模块驱动文件目录为`lib/modules/5.10.0/kernel/drivers`。
 - 该步骤也可在单板升级后，通过重新加载hibmc-drm.ko文件实现，具体步骤如下：
 	1. 升级单板。
     2. 在/lib/modules/5.10.0-openeuler/kernel/drivers目录下找到hibmc-drv.ko

@@ -59,8 +59,8 @@ make menuconfig ARCH=arm64 CROSS_COMPILE=aarch64-openeuler-linux-
 
 - 可以通过查看`hi-mpu/open_sourse/linux5.10/`目录下是否编译出了修改后打开的驱动文件，来判断是否是配置文件的问题。（该内核编译使用的配置文件是在hi-mpu/custom/openeuler/目录下。）
 - 如果配置文件没有问题，可能文件系统存在问题，由于不同openEuler版本在构建过程中使用的defconfig文件路径不同，确认配置文件以及在构建文件系统时已经进行了替换
-	- openEuler24.03-LST：src/yocto-meta-openeuler/bps/meta-hisilicon/recipes-kernel/linux/files/config/hi3093
-    - openEuler22.03-LST-SP3：src/yocto-meta-openeuler/meta-openeuler/recipes-kernel/linux/files/config/
+	- openEuler24.03-LTS：src/yocto-meta-openeuler/bps/meta-hisilicon/recipes-kernel/linux/files/config/hi3093
+    - openEuler22.03-LTS-SP3：src/yocto-meta-openeuler/meta-openeuler/recipes-kernel/linux/files/config/
 
 ------------
 
@@ -84,7 +84,7 @@ make menuconfig ARCH=arm64 CROSS_COMPILE=aarch64-openeuler-linux-
 
 ------------
 
-## 2. 编译Hi3093烧片包
+## 2. 编译运行Hi3093烧片包
 
 ### 2.1 概述
 
@@ -178,3 +178,41 @@ sudo yum install openssl-devel
 
 1. 情况允许的话，最好可以将编译环境的sh指向bash解释器，命令：sudo dpkg-reconfigure dash 选择no 关闭dash解释器。
 2. 也可以通过在报错的文件首行加上 #!/bin/bash，并在运行该文件的命令从sh XXX.sh 改为 ./XXX.sh
+
+------------
+
+#### Q6：如需将新版本SPC和EMMC启动使用同一个串口。
+
+**Answer:**
+
+取下电阻R375，R383焊上阻值为1k的电阻
+
+------------
+
+#### Q7：使用mica脚本启动实时侧UniProton时，报错无法通过指定CPU启动。
+
+![](./images/openEuler系统编译运行常见FAQ/1719394488693_image.png)
+
+**Answer:**
+
+将UniProton配置文件中指定的CPU核心下线，即可解决该问题。
+```shell
+echo 0 > /sys/devices/system/cpu/cpu3/online
+```
+
+------------
+
+#### Q8：使用16M大小的SPC烧录后，SPC启动网口使用正常，但使用ping时，报错无权限。
+
+![](./images/openEuler系统编译运行常见FAQ/1719394488694_image.png)
+
+**Answer:**
+
+此问题是由于SPC包内的bin文件无使用权限导致，可使用以下命令添加权限，并重新加载gmac模块驱动，并设定网络接口的IP解决：
+```shell
+cd /
+chmod -R  777 *bin*
+insmod /lib/net/gmac_drv.ko
+ifconfig eth2 192.168.0.11
+ping 192.168.0.10
+``` 
