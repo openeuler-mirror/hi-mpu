@@ -44,8 +44,8 @@ prepare_check()
 		echo "$DOCKER_FILEDIR isn't exist"
 		exit 1
 	fi
-	if [ ! -e "$DOCKER_FILEDIR"/openeuler-image-qemu-aarch64-*.rootfs.cpio.gz ]; then
-		echo "$DOCKER_FILEDIR/openeuler-image-qemu-aarch64-*.rootfs.cpio.gz isn't exist"
+	if [ ! -e "$DOCKER_FILEDIR"/openeuler-image-*.rootfs.cpio.gz ]; then
+		echo "$DOCKER_FILEDIR/openeuler-image-*.rootfs.cpio.gz isn't exist"
 		exit 1
 	fi
 
@@ -60,7 +60,7 @@ prepare_check()
 		echo "DOCKER_FILEDIR/defconfig-kernel isn't exist"
 		exit 1
 	fi
-	cp $DOCKER_FILEDIR/openeuler-image-qemu-aarch64-*.rootfs.cpio.gz $DOCKER_FILEDIR/initrd_boot.cpio.gz
+	cp $DOCKER_FILEDIR/openeuler-image-*.rootfs.cpio.gz $DOCKER_FILEDIR/initrd_boot.cpio.gz
 	echo "prepare_check end"
 }
 

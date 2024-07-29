@@ -788,9 +788,7 @@ static s32 localbus_remove(struct platform_device *pdev)
 
     localbus_cs_iounmap();
 
-    if (&g_localbus_mgr->localbus_dev != NULL) {
-        comm_cleanup_dev(&g_localbus_mgr->localbus_dev);
-    }
+    comm_cleanup_dev(&g_localbus_mgr->localbus_dev);
 
     if (g_localbus_mgr->regbase) {
         iounmap(g_localbus_mgr->regbase);
