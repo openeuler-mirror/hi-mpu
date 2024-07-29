@@ -348,9 +348,7 @@ static s32 peci_remove(struct platform_device *pdev)
         iounmap(g_peci_mgr->peci_map_addr);
         g_peci_mgr->peci_map_addr = NULL;
 
-        if (&g_peci_mgr->peci_dev != NULL) {
-            comm_cleanup_dev(&g_peci_mgr->peci_dev);
-        }
+        comm_cleanup_dev(&g_peci_mgr->peci_dev);
 
         kfree(g_peci_mgr);
         g_peci_mgr = NULL;

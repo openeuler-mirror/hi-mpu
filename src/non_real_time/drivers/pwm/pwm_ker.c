@@ -735,9 +735,7 @@ static s32 pwm_remove(struct platform_device *pdev)
         pwm_free_allirq(g_fan_pwm_mgr->virq[PWM_FAN_MODULE0], g_fan_pwm_mgr->virq[PWM_FAN_MODULE1]);
         pwm_ioremap_exit();
 
-        if (&g_fan_pwm_mgr->infra_pwm_dev != NULL) {
-            comm_cleanup_dev(&g_fan_pwm_mgr->infra_pwm_dev);
-        }
+        comm_cleanup_dev(&g_fan_pwm_mgr->infra_pwm_dev);
 
         kfree(g_fan_pwm_mgr);
         g_fan_pwm_mgr = NULL;
