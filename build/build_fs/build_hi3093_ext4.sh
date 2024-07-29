@@ -163,16 +163,36 @@ update_cpio()
 
 	#rm unused file
 	sudo rm -rf $CPIO_UNPACKER_DIR/usr/lib64/*
-	cp $TEMP_CPIO_UNPACKER_DIR/usr/lib64/libtirpc.so.3.0.0 $CPIO_UNPACKER_DIR/usr/lib64
-	cp $TEMP_CPIO_UNPACKER_DIR/usr/lib64/libpcre.so.1.2.13 $CPIO_UNPACKER_DIR/usr/lib64
-	cp $TEMP_CPIO_UNPACKER_DIR/usr/lib64/libreadline.so.8.1 $CPIO_UNPACKER_DIR/usr/lib64
-	cp $TEMP_CPIO_UNPACKER_DIR/usr/lib64/libglib-2.0.so.0.7200.2 $CPIO_UNPACKER_DIR/usr/lib64
+    
+    libtirpc=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libtirpc.so.*')
+    cp $libtirpc $CPIO_UNPACKER_DIR/usr/lib64
+    
+    libpcre=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libpcre.so.*' -o -name 'libpcre2-8.so.*')
+    cp $libpcre $CPIO_UNPACKER_DIR/usr/lib64
 
-	cd $CPIO_UNPACKER_DIR/usr/lib64
-	ln -s libpcre.so.1.2.13 libpcre.so.1
-	ln -s libreadline.so.8.1 libreadline.so.8
-	ln -s libglib-2.0.so.0.7200.2 libglib-2.0.so.0
-	ln -s libtirpc.so.3.0.0 libtirpc.so.3
+    libreadline=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libreadline.so.*')
+    cp $libreadline $CPIO_UNPACKER_DIR/usr/lib64
+
+    libglib=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libglib-2.0.so.*')
+    cp $libglib $CPIO_UNPACKER_DIR/usr/lib64
+
+    cd $CPIO_UNPACKER_DIR/usr/lib64
+    libpcre_base=$(basename $libpcre)
+    if [[ $libpcre_base == libpcre.so.* ]]; then
+        ln -s $libpcre_base libpcre.so.1
+    elif [[ $libpcre_base == libpcre2-8.so.* ]]; then
+        ln -s $libpcre_base libpcre2-8.so.0
+    fi
+    
+    libreadline_base=$(basename $libreadline)
+    ln -s $libreadline_base libreadline.so.8
+
+    libglib_base=$(basename $libglib)
+    ln -s $libglib_base libglib-2.0.so.0
+
+    libtirpc_base=$(basename $libtirpc)
+    ln -s $libtirpc_base libtirpc.so.3
+
 	cd $CPIO_UNPACKER_DIR/usr
 	sudo rm -rf bin/ games/ include/ lib/ libexec/ share/
 	cd $CPIO_UNPACKER_DIR/lib
@@ -190,7 +210,7 @@ update_cpio_for_ext4()
 
     #create symbolic link
 	pushd $TEMP_CPIO_UNPACKER_DIR/usr/lib64
-	ln -s libpcre.so.1.2.13 libpcre2-8.so.0
+	ln -s $libpcre_base libpcre2-8.so.0
 	popd
 
 	#cp ko
@@ -251,8 +271,23 @@ update_cpio_for_ext4()
 		echo "cp openEuler Special file"
 	fi
 
-	sed -i "s/115200 ttyAMA0/115200 ttyS0 xterm/g" $(grep "115200 ttyAMA0" -rli ./)
-	sed -i "s/ttyAMA0:/ttyS0:/g" $(grep "ttyAMA0:" -rli ./)
+    files=$(grep "115200 ttyAMA0" -rli ./)
+    if [ -n "$files" ]; then
+        for file in $files; do
+            sed -i "s/115200 ttyAMA0/115200 ttyS0 xterm/g" "$file"
+        done
+    else
+        echo "No files found containing '115200 ttyAMA0'"
+    fi
+
+	files=$(grep "ttyAMA0:" -rli ./)
+    if [ -n "$files" ]; then
+        for file in $files; do
+            sed -i "s/ttyAMA0:/ttyS0:/g" "$file"
+        done
+    else
+        echo "No files found containing 'ttyAMA0:'"
+    fi
 
 	sed -i '$a\sh /hi3093_init.sh' etc/init.d/rc.sysinit
 	cd $WORKING_DIR
