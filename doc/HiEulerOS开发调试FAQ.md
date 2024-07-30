@@ -248,3 +248,8 @@ cd mpu_solution/build/build_tools
 
     mmc_dma_wr addr offset len 从内存addr位置开始向eMMC的offset编号block开始写len个block。
 
+## 12. armv7 32位访存指令非对齐访问处理参考
+
+由于arm 32位linux源码针对armv7指令集中不支持非对齐访存的访存指令做了异常捕获并修正的处理，而arm64的linux源码中移除了该特性，因此某些运行在基于armv7指令集的芯片+arm32 linux 上的代码，由于没有考虑代码在内存访问上可移植性，导致某些访存操作运行在基于aarch64指令集的hi309x系列芯片+openEuler(arm64、linux5.10)平台会发生非对齐异常, 对于该问题，可以参考如下patch中的方法让内核捕获并处理这种内存访问异常：
+
+[https://patchwork.kernel.org/project/linux-arm-kernel/patch/20220701135322.3025321-1-ardb@kernel.org/#24996826](https://patchwork.kernel.org/project/linux-arm-kernel/patch/20220701135322.3025321-1-ardb@kernel.org/#24996826)。
