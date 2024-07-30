@@ -163,35 +163,46 @@ update_cpio()
 
 	#rm unused file
 	sudo rm -rf $CPIO_UNPACKER_DIR/usr/lib64/*
-    
-    libtirpc=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libtirpc.so.*')
+
+    libtirpc=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libtirpc.so.*' -type f)
     cp $libtirpc $CPIO_UNPACKER_DIR/usr/lib64
     
-    libpcre=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libpcre.so.*' -o -name 'libpcre2-8.so.*')
-    cp $libpcre $CPIO_UNPACKER_DIR/usr/lib64
+    libpcre=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libpcre.so.*' -type f)
+    if [ -n "$libpcre" ]; then
+        cp $libpcre $CPIO_UNPACKER_DIR/usr/lib64
+        libpcre_base=$(basename $libpcre)
+    fi
 
-    libreadline=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libreadline.so.*')
+    libpcre2=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libpcre2-8.so.*' -type f)
+    if [ -n "$libpcre2" ]; then
+        cp $libpcre2 $CPIO_UNPACKER_DIR/usr/lib64
+        libpcre_base=$(basename $libpcre2)
+    fi
+
+    libreadline=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libreadline.so.*' -type f)
     cp $libreadline $CPIO_UNPACKER_DIR/usr/lib64
 
-    libglib=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libglib-2.0.so.*')
+    libglib=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'libglib-2.0.so.*' -type f)
     cp $libglib $CPIO_UNPACKER_DIR/usr/lib64
 
-    cd $CPIO_UNPACKER_DIR/usr/lib64
-    libpcre_base=$(basename $libpcre)
-    if [[ $libpcre_base == libpcre.so.* ]]; then
+    liblzma=$(find $TEMP_CPIO_UNPACKER_DIR/usr/lib64 -name 'liblzma.so.*' -type f)
+    cp $liblzma $CPIO_UNPACKER_DIR/usr/lib64
+
+	pushd $CPIO_UNPACKER_DIR/usr/lib64
+    if [[ "$libpcre_base" == libpcre.so.* ]]; then
         ln -s $libpcre_base libpcre.so.1
-    elif [[ $libpcre_base == libpcre2-8.so.* ]]; then
+    elif [[ "$libpcre_base" == libpcre2-8.so.* ]]; then
         ln -s $libpcre_base libpcre2-8.so.0
     fi
-    
-    libreadline_base=$(basename $libreadline)
-    ln -s $libreadline_base libreadline.so.8
-
-    libglib_base=$(basename $libglib)
-    ln -s $libglib_base libglib-2.0.so.0
-
     libtirpc_base=$(basename $libtirpc)
     ln -s $libtirpc_base libtirpc.so.3
+    libreadline_base=$(basename $libreadline)
+    ln -s $libreadline_base libreadline.so.8
+    libglib_base=$(basename $libglib)
+    ln -s $libglib_base libglib-2.0.so.0
+    liblzma_base=$(basename $liblzma)
+    ln -s $liblzma_base liblzma.so.5
+    popd
 
 	cd $CPIO_UNPACKER_DIR/usr
 	sudo rm -rf bin/ games/ include/ lib/ libexec/ share/
@@ -210,8 +221,10 @@ update_cpio_for_ext4()
 
     #create symbolic link
 	pushd $TEMP_CPIO_UNPACKER_DIR/usr/lib64
-	ln -s $libpcre_base libpcre2-8.so.0
-	popd
+    if [ -n "$libpcre" ]; then
+        ln -s $libpcre_base libpcre2-8.so.0
+    fi
+    popd
 
 	#cp ko
 	cp $SDK_UNPACKET_DIR/ko/gmac_drv.ko $TEMP_CPIO_UNPACKER_DIR/lib/modules
@@ -271,7 +284,7 @@ update_cpio_for_ext4()
 		echo "cp openEuler Special file"
 	fi
 
-    files=$(grep "115200 ttyAMA0" -rli ./)
+    files=$(find . -type f -exec grep -l "115200 ttyAMA0" {} \;)  
     if [ -n "$files" ]; then
         for file in $files; do
             sed -i "s/115200 ttyAMA0/115200 ttyS0 xterm/g" "$file"
@@ -280,7 +293,7 @@ update_cpio_for_ext4()
         echo "No files found containing '115200 ttyAMA0'"
     fi
 
-	files=$(grep "ttyAMA0:" -rli ./)
+    files=$(find . -type f -exec grep -l "ttyAMA0:" {} \;)  
     if [ -n "$files" ]; then
         for file in $files; do
             sed -i "s/ttyAMA0:/ttyS0:/g" "$file"
