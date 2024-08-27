@@ -84,6 +84,21 @@ make menuconfig ARCH=arm64 CROSS_COMPILE=aarch64-openeuler-linux-
 
 ------------
 
+#### Q6：编译arm-trusted-firmware模块时，警告`release/bl31/bl31.elf has a LOAD segment with RWX permissions`。
+
+**Answer:**
+
+修改`open_source/arm-trusted-firmware-2.7/Makefile`文件。
+
+- 针对gcc编译器，TF_LDFLAGS参数增加`-Wl,--no-warn-rwx-segment`。
+- 针对ld编译器，TF_LDFLAGS参数增加`--no-warn-rwx-segment`。
+
+![](./images/openEuler系统编译运行常见FAQ/1719394488695_image.png)
+
+参考链接：[warning: /arm-trusted-firmware/build/rk3399/release/bl31/bl31.elf has a LOAD segment with RWX permissions #2](https://github.com/deamen/arm64v8/issues/2)
+
+------------
+
 ## 2. 编译运行Hi3093烧片包
 
 ### 2.1 概述
@@ -189,7 +204,41 @@ sudo yum install openssl-devel
 
 ------------
 
-#### Q7：使用mica脚本启动实时侧UniProton时，报错无法通过指定CPU启动。
+#### Q7：若需使用最新的mica工具启动实时侧UniProton，需修改mcs相关设备树。
+
+**Answer:**
+
+在hi3093_mcs_3with1.dts设备树文件中，修改reserved-memory节点，修改为以下内容。
+
+```
+reserved-memory {
+    #address-cells = <0x2>;
+    #size-cells = <0x2>;
+    ranges;
+
+    client_os_reserved: client_os_reserved@93000000 {
+            reg = <0x00 0x93000000 0x00 0x4000000>;
+            no-map;
+    };
+
+    client_os_dma_memory_region: client_os-dma-memory@90000000 {
+            compatible = "shared-dma-pool";
+            reg = <0x00 0x90000000 0x00 0x3000000>;
+            no-map;
+    };
+};
+
+mcs-remoteproc {
+    compatible = "oe,mcs_remoteproc";
+    memory-region = <&client_os_dma_memory_region>,
+            <&client_os_reserved>;
+};
+```
+
+mica命令与配置文件介绍：[参考链接](https://pages.openeuler.openatom.cn/embedded/docs/build/html/master/features/mica/mica_ctl.html)
+
+------------
+#### Q8：使用mica脚本启动实时侧UniProton时，报错无法通过指定CPU启动。
 
 ![](./images/openEuler系统编译运行常见FAQ/1719394488693_image.png)
 
@@ -202,7 +251,7 @@ echo 0 > /sys/devices/system/cpu/cpu3/online
 
 ------------
 
-#### Q8：使用16M大小的SPC烧录后，SPC启动网口使用正常，但使用ping时，报错无权限。
+#### Q9：使用16M大小的SPC烧录后，SPC启动网口使用正常，但使用ping时，报错无权限。
 
 ![](./images/openEuler系统编译运行常见FAQ/1719394488694_image.png)
 
@@ -215,4 +264,4 @@ chmod -R  777 *bin*
 insmod /lib/net/gmac_drv.ko
 ifconfig eth2 192.168.0.11
 ping 192.168.0.10
-``` 
+```
