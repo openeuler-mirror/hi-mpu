@@ -402,10 +402,10 @@
             interrupts = <0x0 87 0x4>;
         };
 
-        /* 
-         * The i2c@2000d000 node is used to implement the method in the src/non_real_time/drivers/i2c directory. 
+        /*
+         * The i2c@2000d000 node is used to implement the method in the src/non_real_time/drivers/i2c directory.
          * This method does not use the Linux kernel framework.
-         * If you need to use this driver, delete i2c_bus0 to i2c_bus15 and use the i2c@2000d000 node. 
+         * If you need to use this driver, delete i2c_bus0 to i2c_bus15 and use the i2c@2000d000 node.
          */
         /*
          * i2c@2000d000 {
@@ -509,19 +509,71 @@
 
         spi0@08713000 {
             compatible = "hisilicon,hisi-spi";
-            ctlid = /bits/ 32 <0x0>; /*controler not use*/
+            ctlid = /bits/ 32 <0x0>; // controler not use
             reg = <0x0 0x08713000 0x0 0x1000>;
-            clock-sel = /bits/ 32 <2>; /*0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)*/
+            clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
             interrupts = <0 114 4>;
+            num-cs = <2>;
+
+            spidev0_0: spidev0_0 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x0>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
+
+            spidev0_1: spidev0_1 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x1>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
         };
 
         spi1@08713000 {
             compatible = "hisilicon,hisi-spi";
-            ctlid = /bits/ 32 <0x1>; /*not use*/
+            ctlid = /bits/ 32 <0x1>; // not use
             reg = <0x0 0x08715000 0x0 0x1000>;
-            clock-sel = /bits/ 32 <2>; /*0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)*/
+            clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
             interrupts = <0 139 4>;
+            num-cs = <2>;
+
+            spidev1_0: spidev1_0 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x0>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
+
+            spidev1_1: spidev1_1 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x1>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
         };
+
+        /*
+         * spi0@08713000 {
+         *     compatible = "hisilicon,hisi-spi";
+         *     ctlid = /bits/ 32 <0x0>; // controler not use
+         *     reg = <0x0 0x08713000 0x0 0x1000>;
+         *     clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
+         *     interrupts = <0 114 4>;
+         * };
+         *
+         * spi1@08713000 {
+         *     compatible = "hisilicon,hisi-spi";
+         *     ctlid = /bits/ 32 <0x1>; // not use
+         *     reg = <0x0 0x08715000 0x0 0x1000>;
+         *     clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
+         *     interrupts = <0 139 4>;
+         * };
+         */
 
         pwm@08759000{
             compatible = "hisilicon, hi1711-pwm";

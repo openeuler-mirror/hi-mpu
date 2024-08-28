@@ -1,7 +1,7 @@
 include $(SDK_ROOT)/Makefile.cfg
 
-obj-m := spi_drv.o
-spi_drv-objs := hi_spi.o spi_hi1710_process.o
+obj-m := spi_hi309x_drv.o
+spi_hi309x_drv-objs := spi_hi309x.o
 
 MODULE_MAKE=$(PWD)
 

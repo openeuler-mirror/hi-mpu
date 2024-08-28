@@ -22,8 +22,8 @@
     };
 
     chosen {
-		bootargs = "console=ttyS0,115200n8N earlycon=uart8250,mmio32,0x08710000 initrd=${initrd_load_addr},${initrd_size} rdinit=/sbin/init rw ekbox=0x20000$0x84be0000 kbox_mem=0x2e0000@0x84900000 swift_irqsoff_enable ramdisk_size=655360 quiet maxcpus=3";
-	};
+        bootargs = "console=ttyS0,115200n8N earlycon=uart8250,mmio32,0x08710000 initrd=${initrd_load_addr},${initrd_size} rdinit=/sbin/init rw ekbox=0x20000$0x84be0000 kbox_mem=0x2e0000@0x84900000 swift_irqsoff_enable ramdisk_size=655360 quiet maxcpus=3";
+    };
 
     memory@80000000 {
         device_type = "memory";
@@ -31,21 +31,21 @@
     };
 
     reserved-memory {
-		#address-cells = <0x2>;
-		#size-cells = <0x2>;
-		ranges;
+        #address-cells = <0x2>;
+        #size-cells = <0x2>;
+        ranges;
 
-		mcs@90000000 {
-			reg = <0x0 0x90000000 0x0 0x5000000>;
-			compatible = "mcs_mem";
-			no-map;
-		};
-	};
+        mcs@90000000 {
+            reg = <0x0 0x90000000 0x0 0x5000000>;
+            compatible = "mcs_mem";
+            no-map;
+        };
+    };
 
-	psci {
-		compatible = "arm,psci-0.2";
-		method = "smc";
-	};
+    psci {
+        compatible = "arm,psci-0.2";
+        method = "smc";
+    };
     cpus {
         #address-cells = <0x1>;
         #size-cells = <0x0>;
@@ -428,10 +428,10 @@
             interrupts = <0x0 87 0x4>;
         };
 
-        /* 
-         * The i2c@2000d000 node is used to implement the method in the src/non_real_time/drivers/i2c directory. 
+        /*
+         * The i2c@2000d000 node is used to implement the method in the src/non_real_time/drivers/i2c directory.
          * This method does not use the Linux kernel framework.
-         * If you need to use this driver, delete i2c_bus0 to i2c_bus15 and use the i2c@2000d000 node. 
+         * If you need to use this driver, delete i2c_bus0 to i2c_bus15 and use the i2c@2000d000 node.
          */
         /*
          * i2c@2000d000 {
@@ -535,21 +535,75 @@
 
         spi0@08713000 {
             compatible = "hisilicon,hisi-spi";
-            ctlid = /bits/ 32 <0x0>; /*controler not use*/
+            ctlid = /bits/ 32 <0x0>; // controler not use
             reg = <0x0 0x08713000 0x0 0x1000>;
-            clock-sel = /bits/ 32 <2>; /*0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)*/
+            clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
             interrupts = <0 114 4>;
+            num-cs = <2>;
             domain = <0x0>;
+
+            spidev0_0: spidev0_0 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x0>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
+
+            spidev0_1: spidev0_1 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x1>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
         };
 
         spi1@08713000 {
             compatible = "hisilicon,hisi-spi";
-            ctlid = /bits/ 32 <0x1>; /*not use*/
+            ctlid = /bits/ 32 <0x1>; // not use
             reg = <0x0 0x08715000 0x0 0x1000>;
-            clock-sel = /bits/ 32 <2>; /*0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)*/
+            clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
             interrupts = <0 139 4>;
+            num-cs = <2>;
             domain = <0x1>;
+
+            spidev1_0: spidev1_0 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x0>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
+
+            spidev1_1: spidev1_1 {
+                compatible = "rohm,dh2228fv";
+                reg = <0x1>;
+                spi-max-frequency = <20000000>;
+                spi-cpol;
+                spi-cpha;
+            };
         };
+
+        /*
+         * spi0@08713000 {
+         *     compatible = "hisilicon,hisi-spi";
+         *     ctlid = /bits/ 32 <0x0>; // controler not use
+         *     reg = <0x0 0x08713000 0x0 0x1000>;
+         *     clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
+         *     interrupts = <0 114 4>;
+         *     domain = <0x0>;
+         * };
+         *
+         * spi1@08713000 {
+         *     compatible = "hisilicon,hisi-spi";
+         *     ctlid = /bits/ 32 <0x1>; // not use
+         *     reg = <0x0 0x08715000 0x0 0x1000>;
+         *     clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
+         *     interrupts = <0 139 4>;
+         *     domain = <0x1>;
+         * };
+         */
 
         pwm@08759000{
             compatible = "hisilicon, hi1711-pwm";
