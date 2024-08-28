@@ -289,8 +289,6 @@ update_cpio_for_ext4()
         for file in $files; do
             sed -i "s/115200 ttyAMA0/115200 ttyS0 xterm/g" "$file"
         done
-    else
-        echo "No files found containing '115200 ttyAMA0'"
     fi
 
     files=$(find . -type f -exec grep -l "ttyAMA0:" {} \;)  
@@ -298,8 +296,6 @@ update_cpio_for_ext4()
         for file in $files; do
             sed -i "s/ttyAMA0:/ttyS0:/g" "$file"
         done
-    else
-        echo "No files found containing 'ttyAMA0:'"
     fi
 
 	sed -i '$a\sh /hi3093_init.sh' etc/init.d/rc.sysinit
