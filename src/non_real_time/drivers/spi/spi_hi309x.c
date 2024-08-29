@@ -574,7 +574,6 @@ static s32 spi_transfer_para_check(struct spi_transfer *xfer, u32 bits_per_word_
         return -EINVAL;
     }
 
-    printk("SPI: Transfer speed_hz: %uHz\n", xfer->speed_hz);
     if (xfer->speed_hz > max_speed_hz) {
         LOG(LOG_ERROR, "SPI ERROR: Transfer speed_hz is greater than the max_speed_hz!");
         return -EINVAL;
