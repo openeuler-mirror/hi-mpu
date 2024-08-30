@@ -535,6 +535,8 @@
 
         spi0@08713000 {
             compatible = "hisilicon,hisi-spi";
+            #address-cells = <0x1>;
+            #size-cells = <0x0>;
             ctlid = /bits/ 32 <0x0>; // controler not use
             reg = <0x0 0x08713000 0x0 0x1000>;
             clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)
@@ -561,6 +563,8 @@
 
         spi1@08713000 {
             compatible = "hisilicon,hisi-spi";
+            #address-cells = <0x1>;
+            #size-cells = <0x0>;
             ctlid = /bits/ 32 <0x1>; // not use
             reg = <0x0 0x08715000 0x0 0x1000>;
             clock-sel = /bits/ 32 <2>; // 0: FPGA freq, 2(or any other value): use bus clock(apb 100mhz)

@@ -20,4 +20,6 @@ properties:
   domain:
     type: array
     required: true
-  
+  num-cs:
+    type: array
+    required: true
