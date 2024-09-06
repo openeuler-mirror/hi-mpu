@@ -38,7 +38,7 @@ vi openeuler-qt.yaml
 
 ------------
 
-#### Q3: 修改配置文件后，发现defconfig把arm64等基本内核配置被关闭。
+#### Q3: 修改配置文件后，发现defconfig把arm64等基本内核配置关闭。
 
 **Answer:**
 
