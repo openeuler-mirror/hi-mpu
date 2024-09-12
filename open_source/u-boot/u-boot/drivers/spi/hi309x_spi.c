@@ -52,12 +52,20 @@ static int spi_read(struct hi309x_spi_adapter *priv, void *data_addr, uint len, 
     uint u_timeout = SPI_TRANSFER_TIMEOUT * 1000; // 1000 us
     uint rx_temp;
     int ret;
-    (void)cs;
+    uint tmp_value;
 
+    tmp_value = spi_readl(priv->regbase, SPI_CTRLR0_OFFSET_ADDR);
+    tmp_value = drv_32bit_set_field(tmp_value, CTRLR0_TMOD_FIELD_START_BIT, CTRLR0_TMOD_FIELD_END_BIT, 0x0);
+    spi_writel(priv->regbase, tmp_value, SPI_CTRLR0_OFFSET_ADDR);
+
+    spi_writel(priv->regbase, (1 << cs), SPI_SER_OFFSET_ADDR);
     while (word_num) {
         if (exception_tackle(&u_timeout)) {
             return -ETIMEDOUT;
         }
+
+        spi_writel(priv->regbase, 0x5a5a, SPI_DR0_OFFSET_ADDR);
+        dsb();
 
         rx_temp = spi_readl(priv->regbase, SPI_RXFLR_OFFSET_ADDR);
         if (rx_temp == 0) {
@@ -74,6 +82,7 @@ static int spi_read(struct hi309x_spi_adapter *priv, void *data_addr, uint len, 
     }
 
     ret = spi_wait_idle(priv->regbase);
+    spi_writel(priv->regbase, SER_REG_VALUE_NON_SLAVE, SPI_SER_OFFSET_ADDR);
 
     spi_disable(priv->regbase);    /* clear tx and rx fifo */
     spi_enable(priv->regbase);
@@ -86,24 +95,27 @@ static int spi_write(struct hi309x_spi_adapter *priv, const void *data_addr, uin
     uint word_num = len;
     uint tx_temp_val;
     int ret = 0;
+    uint tmp_value;
+
+    tmp_value = spi_readl(priv->regbase, SPI_CTRLR0_OFFSET_ADDR);
+    tmp_value = drv_32bit_set_field(tmp_value, CTRLR0_TMOD_FIELD_START_BIT, CTRLR0_TMOD_FIELD_END_BIT, 0x1);
+    spi_writel(priv->regbase, tmp_value, SPI_CTRLR0_OFFSET_ADDR);
 
     spi_writel(priv->regbase, (1 << cs), SPI_SER_OFFSET_ADDR);
     while (word_num) {
         if (priv->wordlen > 8) {
             tx_temp_val = 0xffff & ((ushort *)data_addr)[len - word_num];
             spi_writel(priv->regbase, tx_temp_val, SPI_DR0_OFFSET_ADDR);
-            udelay(1000);
         } else {
             tx_temp_val = 0xffff & ((uchar *)data_addr)[len - word_num];
             spi_writel(priv->regbase, tx_temp_val, SPI_DR0_OFFSET_ADDR);
-            udelay(1000);
         }
 
         word_num--;
     }
+    ret = spi_wait_idle(priv->regbase);
     spi_writel(priv->regbase, SER_REG_VALUE_NON_SLAVE, SPI_SER_OFFSET_ADDR);
 
-    ret = spi_wait_idle(priv->regbase);
     return ret;
 }
 
@@ -200,7 +212,7 @@ static void spi_ctrl_reg_config(ulong regbase, spi_config_items item, uint val)
         tmp_value = drv_32bit_set_field(tmp_value, CTRLR0_SCPH_FIELD_BIT, CTRLR0_SCPH_FIELD_BIT, val);
     } else if (item == POL) {
         tmp_value = drv_32bit_set_field(tmp_value, CTRLR0_SCPOL_FIELD_BIT, CTRLR0_SCPOL_FIELD_BIT, val);
-    } 
+    }
 
     spi_writel(regbase, tmp_value, SPI_CTRLR0_OFFSET_ADDR);
 }
