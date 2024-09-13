@@ -2,7 +2,7 @@
 
 ### 1.1 概述
 
-构建常见问题，主要是针对在构建openEuler文件系统与zImage镜像过程中的错误进行记录。oebuild是基于python语言实现的，使用该工具需在编译环境内安装python3.8以上的的和版本进行使用，详见 [https://gitee.com/openeuler/oebuild.git](https://gitee.com/openeuler/oebuild.git) 介绍。
+构建常见问题，主要是针对在构建openEuler文件系统与zImage镜像过程中的错误进行记录。oebuild是基于python语言实现的，使用该工具需在编译环境内安装python3.8以上版本，详见 [https://gitee.com/openeuler/oebuild.git](https://gitee.com/openeuler/oebuild.git) 介绍。
 
 ### 1.2 FAQ
 
