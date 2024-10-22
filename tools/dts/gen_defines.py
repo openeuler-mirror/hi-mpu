@@ -3,10 +3,8 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2020-2023. All rights reserved.
 #!/usr/bin/env python3
 import argparse
-from collections import defaultdict
 import logging
 import os
-import pathlib
 import pickle
 import re
 import sys
