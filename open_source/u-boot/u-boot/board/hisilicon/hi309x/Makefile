@@ -6,5 +6,5 @@
 #
 
 obj-$(CONFIG_TARGET_HI309x) := hi309x.o pcie_init.o
-obj-$(CONFIG_TARGET_HI309x) += uart.o uart_core.o ddr.o fdt_fix.o atf_boot.o hi309x_pm.o bd_info.o
+obj-$(CONFIG_TARGET_HI309x) += uart.o uart_core.o ddr.o fdt_fix.o atf_boot.o hi309x_pm.o bd_info.o timer_core.o
 obj-$(CONFIG_TARGET_HI309x) += dboot.o

@@ -8,6 +8,7 @@
 #include <asm/armv8/mmu.h>
 #include <asm/io.h>
 #include <hi309x_common.h>
+#include "timer_core.h"
 #include "bd_info.h"
 #include "env.h"
 #define SYSCNT_ENABLE_VAL ((1UL << 8) | 0x1)
@@ -154,15 +155,13 @@ unsigned int sys_inif_flag_get(unsigned int mask, unsigned int bit_off)
     return sys_init_flag;
 }
 
-/* delay without timer */
+/* delay with timer */
 void early_udelay(unsigned long usec)
 {
-    volatile unsigned long count;
+    unsigned int count;
 
-    count = usec * 1000; /* 1GHZ 执行一条命令消耗1ns 1000倍表示us */
-    while (count-- != 0) {
-        asm volatile("nop");
-    }
+    count = usec * TIMER_1US - 1; /* 定时器中断计数一次0.01us 100倍表示us */
+    timer_cnt(CONFIG_SYS_TIMER_NUM, count);
 
     return;
 }
@@ -540,9 +539,27 @@ void uart_early_init(void)
     (void)uart_init(CONFIG_SYS_UART_NUM, &cfg, uart_src_clk);
 }
 
+/* init timer */
+static void timer_early_init(void)
+{
+    timer_cfg cfg;
+    cfg.id = CONFIG_SYS_TIMER_NUM;
+    cfg.load_l = 0;
+    cfg.load_h = 0;
+    cfg.bgload_l = 0;
+    cfg.bgload_h = 0;
+    cfg.mode = 0x02; /* Run in oneshot mode */
+    cfg.prescaler = 0;                  /* Don't frequency division */
+    cfg.interrupten = 0;                /* Trigger interrupt enable */
+    cfg.size = 0;                       /* 1 for 64bit, 0 for 32bit */
+
+    (void)timer_core_init(&cfg);
+}
+
 int board_early_init_f(void)
 {
     uart_early_init();
+	timer_early_init();
     return 0;
 }
 #endif
